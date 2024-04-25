@@ -27,7 +27,7 @@ Resources:
       KeyName: "ClavesMario"
       SecurityGroupIds:
         - !Ref WebServerSecurityGroup
-      SubnetId: "subnet-044785eec793f6c06"
+      SubnetId: "subnet-044785eec793f6c06"  #subred privada para servidor
       UserData:
         Fn::Base64: |
           #!/bin/bash
