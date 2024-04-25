@@ -1,0 +1,75 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Plantilla utilizada para crear un web server con una EC2
+
+Parameters:
+  OwnerTagName: 
+    Type: String
+    Default: Santino Cassarino
+    Description: Value of the "Owner" tag to be applied to the resources
+  
+  MyIP:
+    Type: String
+    Default: 87.221.52.127/32
+    Description: Mi IP publica
+
+  VPC:
+    Type: AWS::EC2::VPC::Id
+    Default: vpc-03fdd3b33e6bc9591
+    Description: Id de la VPC de sandbox
+
+  PublicSubnet:
+    Type: AWS::EC2::Subnet::Id
+    Default: subnet-05a69f75c7584847b
+    Description: Id de la subred publica
+
+  AvailabilityZone:
+    Type: String
+    Default: eu-west-1a
+    Description: Zona de disponibilidad
+
+
+
+Resources:
+
+  SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Permite conexiones ssh y http
+      GroupName: srs-cloud-sandbox-sci-cfsg
+      SecurityGroupIngress: 
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: !Ref MyIP
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: !Ref MyIP
+      Tags: 
+        - Key: Owner
+          Value: !Ref OwnerTagName
+      VpcId: !Ref VPC
+
+  PublicEC2:
+    Type: AWS::EC2::Instance
+    Properties:
+      AvailabilityZone: !Ref AvailabilityZone
+      ImageId: ami-0f007bf1d5c770c6e
+      InstanceType: "t2.micro"
+      KeyName: ClavesSantino
+      SecurityGroupIds: 
+       [!Ref SecurityGroup] 
+      SubnetId: !Ref PublicSubnet
+      Tags: 
+        - Key: Owner
+          Value: !Ref OwnerTagName
+        - Key: Name
+          Value: srs-cloud-sandbox-sci-ec2cf
+      UserData: 
+        Fn::Base64: |
+          #!/bin/bash
+          yum update -y
+          yum install -y httpd
+          systemctl start httpd
+          systemctl enable httpd
+          echo "<h1>Esta es mi página web alojada desde $(hostname)!</h1>" > /var/www/html/index.html
