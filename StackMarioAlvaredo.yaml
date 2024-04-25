@@ -19,6 +19,19 @@ Resources:
       Tags:
         - Key: "Name"
           Value: "srs-cloud-sandbox-mao-SG"
+  ELBSecurityGroup:
+    Type: "AWS::EC2::SecurityGroup"
+    Properties:
+      GroupDescription: "Allow traffic HTTP from internet"
+      SecurityGroupIngress:
+        - IpProtocol: "tcp"
+          FromPort: 80
+          ToPort: 80
+          CidrIp: "0.0.0.0/0"       
+      VpcId: "vpc-03fdd3b33e6bc9591"  
+      Tags:
+        - Key: "Name"
+          Value: "srs-cloud-sandbox-mao-SGELB"
   WebServerInstance:
     Type: "AWS::EC2::Instance"
     Properties:
