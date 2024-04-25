@@ -1,0 +1,101 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "Plantilla de CloudFormation para una aplicación web con ELB, EFS y EBS (Mario)"
+
+Resources:
+  WebServerSecurityGroup:
+    Type: "AWS::EC2::SecurityGroup"
+    Properties:
+      GroupDescription: "Allow traffic HTTP and SSH only for my IP"
+      SecurityGroupIngress:
+        - IpProtocol: "tcp"
+          FromPort: 80
+          ToPort: 80
+          CidrIp: "0.0.0.0/0"
+        - IpProtocol: "tcp"
+          FromPort: 22
+          ToPort: 22
+          CidrIp: "79.146.140.67/32" # mi IP
+      VpcId: "vpc-03fdd3b33e6bc9591"  
+      Tags:
+        - Key: "Name"
+          Value: "srs-cloud-sandbox-mao-SG"
+  WebServerInstance:
+    Type: "AWS::EC2::Instance"
+    Properties:
+      ImageId: "ami-0d421d84814b7d51c"
+      InstanceType: "t2.micro"
+      KeyName: "ClavesMario"
+      SecurityGroupIds:
+        - !Ref WebServerSecurityGroup
+      SubnetId: "subnet-044785eec793f6c06"
+      UserData:
+        Fn::Base64: |
+          #!/bin/bash
+          yum update -y
+          yum install -y httpd
+          systemctl start httpd
+          systemctl enable httpd
+          echo "<h1>Esta es mi web $(hostname -f)</h1>" > /var/www/html/index.html
+      Tags:
+        - Key: "Name"
+          Value: "srs-cloud-sandbox-mao-ec2WEB"
+  MyELB:
+    Type: "AWS::ElasticLoadBalancingV2::LoadBalancer"
+    Properties:
+      Name: "MyELB"
+      Subnets:
+        - "subnet-05a69f75c7584847b"
+        - "subnet-0b2f22ba72d34584b"
+      SecurityGroups:
+        - !Ref WebServerSecurityGroup
+      Scheme: "internet-facing"
+      Type: "application"
+      LoadBalancerAttributes:
+        - Key: idle_timeout.timeout_seconds
+          Value: "60"
+      Tags:
+        - Key: "Name"
+          Value: "srs-cloud-sandbox-mao-ELB"
+  MyELBListener:
+    Type: "AWS::ElasticLoadBalancingV2::Listener"
+    Properties:
+      DefaultActions:
+        - Type: "forward"
+          TargetGroupArn: !Ref MyELBTargetGroup
+      LoadBalancerArn: !Ref MyELB
+      Port: 80
+      Protocol: "HTTP"
+  MyELBTargetGroup:
+    Type: "AWS::ElasticLoadBalancingV2::TargetGroup"
+    Properties:
+      Name: "MyELBTargetGroup"
+      VpcId: "vpc-03fdd3b33e6bc9591"
+      Port: 80
+      Protocol: "HTTP"
+      TargetType: "instance"
+      Targets:
+        - Id: !Ref WebServerInstance
+      Tags:
+        - Key: "Name"
+          Value: "srs-cloud-sandbox-mao-Target"
+  MyEFS:
+    Type: "AWS::EFS::FileSystem"
+    Properties:
+      FileSystemTags:
+        - Key: "Name"
+          Value: "srs-cloud-sandbox-mao-EFS"
+  MyEBSVolume:
+    Type: "AWS::EC2::Volume"
+    Properties:
+      AvailabilityZone: "eu-west-1a"
+      Size: 5
+      VolumeType: "gp2"
+      Tags:
+        - Key: "Name"
+          Value: "srs-cloud-sandbox-mao-EBS"
+  EBSVolumeAttachment:
+    Type: "AWS::EC2::VolumeAttachment"
+    Properties:
+      InstanceId: !Ref WebServerInstance
+      VolumeId: !Ref MyEBSVolume
+      Device: "/dev/sdf"
