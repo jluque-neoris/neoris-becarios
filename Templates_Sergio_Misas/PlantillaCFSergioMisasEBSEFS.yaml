@@ -1,0 +1,66 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+Parameters: 
+
+  VPCId: 
+    Type: AWS::EC2::VPC::Id
+
+  Subnet:
+    Description: 
+    Type: AWS::EC2::Subnet::Id
+    Default: 
+  
+  SecurityGroup:
+    Description: 
+    Type: AWS::EC2::SecurityGroup::GroupName
+    Default: 
+
+  AvailabilityZone:
+    Description: 
+    Type: AWS::EC2::AvailabilityZone::Name
+    Default: 
+
+Resources:
+
+  InstaciaEc2:
+    Type: AWS::EC2::Instance
+    Properties:
+      AvailabilityZone: !Ref AvailabilityZone
+      ImageId: ami-0f007bf1d5c770c6e
+      InstanceType: "t2.micro"
+      KeyName: KeyPairSergioM
+      SecurityGroupIds:
+       [!Ref SecurityGroup]
+      SubnetId: !Ref Subnet
+      Volumes:
+           - !Ref EbsVolume: 
+             Device: "xvdb"
+      UserData: "cd .. & cd .. & sudo mkdir vol & sudo file -s /dev/xvdb & sudo mkfs -t xfs /dev/xvdb & sudo mount /dev/xvdb /vol"
+
+
+  EbsVolume:
+    Type: AWS::EC2::Volume
+    Properties:
+      AutoEnableIO: false
+      AvailabilityZone: !Ref AvailabilityZone # Required
+      Encrypted: false
+      Iops: 3000
+      MultiAttachEnabled: false
+      Size: 4
+      Tags: 
+        Owner: "SergioMisas"
+      VolumeType: "gp3"
+  
+  EfsFileSystem:
+    Type: AWS::EFS::FileSystem
+    Properties:
+      AvailabilityZoneName: !Ref AvailabilityZone
+      BypassPolicyLockoutSafetyCheck: false
+      Encrypted: false
+      FileSystemPolicy: JSON
+      FileSystemTags: 
+        Owner: "Sergio Misas"
+      ReplicationConfiguration:
+        Destinations:
+          -
+      
