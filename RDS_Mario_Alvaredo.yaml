@@ -43,17 +43,16 @@ Resources:
         ExcludeCharacters: '"@/\\'
       Tags:
         - Key: "Name"
-          Value: "srs-cloud-sandbox-mao-secretRDS"
+          Value: "srs-cloud-sandbox-mao-secret-rds"
 
   DBInstance:
     Type: "AWS::RDS::DBInstance"
     Properties:
-      DBInstanceIdentifier: "srs-cloud-sandbox-mao-EC2DRS"
-      DBName: "my_database"
+      DBInstanceIdentifier: "srs-cloud-sandbox-mao-rds"
       AllocatedStorage: 20
-      DBInstanceClass:  db.t1.micro  
+      DBInstanceClass:  db.t2.micro  
       Engine: mysql
-      EngineVersion: "5.7"
+      EngineVersion: "8.0"
       MasterUsername: "admin"
       MasterUserPassword: !Ref DatabaseSecret
       VPCSecurityGroups:
@@ -61,6 +60,6 @@ Resources:
       DBSubnetGroupName: !Ref DBSubnetGroup
       Tags:
         - Key: "Name"
-          Value: "srs-cloud-sandbox-mao-EC2DRS"
+          Value: "srs-cloud-sandbox-mao-rds"
 
 
