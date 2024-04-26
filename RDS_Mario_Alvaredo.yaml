@@ -1,0 +1,66 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "Plantilla de CloudFormation para una instancia de base de datos RDS (Mario)"
+
+Resources:
+  RDSSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: "Allow access to RDS instance"
+      VpcId: "vpc-03fdd3b33e6bc9591"
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 3306
+          ToPort: 3306
+          CidrIp: "10.0.5.0/24" # subred aislada de mi VPC
+        - IpProtocol: tcp
+          FromPort: 3306
+          ToPort: 3306
+          CidrIp: "10.0.1.0/24" # subred publica de mi VPC
+        - IpProtocol: tcp
+          FromPort: 3306
+          ToPort: 3306
+          CidrIp: "10.0.3.0/24" # subred Privada de mi VPC
+      Tags:
+        - Key: "Name"
+          Value: "srs-cloud-sandbox-mao-SGrds"
+
+  DBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: "Subnet group for RDS instance " # dos subredes en dierentes AZ por estandar para tener alta disponibilidad
+      SubnetIds:
+        - "subnet-001a928f428730716"  # subred aislada zona AZ 1a 
+        - "subnet-0d5c2702c3509096a"   # subred aislada zona AZ 1b
+
+  DatabaseSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Description: "Secret for RDS database access"
+      GenerateSecretString:
+        SecretStringTemplate: '{"username": "admin"}'
+        GenerateStringKey: "password"
+        PasswordLength: 16
+        ExcludeCharacters: '"@/\\'
+      Tags:
+        - Key: "Name"
+          Value: "srs-cloud-sandbox-mao-secretRDS"
+
+  DBInstance:
+    Type: "AWS::RDS::DBInstance"
+    Properties:
+      DBInstanceIdentifier: "srs-cloud-sandbox-mao-EC2DRS"
+      DBName: "my_database"
+      AllocatedStorage: 20
+      DBInstanceClass:  db.t1.micro  
+      Engine: mysql
+      EngineVersion: "5.7"
+      MasterUsername: "admin"
+      MasterUserPassword: !Ref DatabaseSecret
+      VPCSecurityGroups:
+        - !GetAtt RDSSecurityGroup.GroupId
+      DBSubnetGroupName: !Ref DBSubnetGroup
+      Tags:
+        - Key: "Name"
+          Value: "srs-cloud-sandbox-mao-EC2DRS"
+
+
