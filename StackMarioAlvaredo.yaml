@@ -1,7 +1,20 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Description: "Plantilla de CloudFormation para una aplicación web con ELB, EFS y EBS (Mario)"
+Parameters:
+  MyIP:
+    Type: String
+    Default: 79.146.140.67/32
+    Description: Mi IP publica
+
+  VPC:
+    Type: AWS::EC2::VPC::Id
+    Default: vpc-03fdd3b33e6bc9591
+    Description: Id de la VPC de sandbox
 
 Resources:
+  Description: 
+  Type: String
+  Default: 
   WebServerSecurityGroup:
     Type: "AWS::EC2::SecurityGroup"
     Properties:
@@ -14,11 +27,11 @@ Resources:
         - IpProtocol: "tcp"
           FromPort: 22
           ToPort: 22
-          CidrIp: "79.146.140.67/32" # mi IP
-      VpcId: "vpc-03fdd3b33e6bc9591"  
+          CidrIp: !Ref MyIP # mi IP
+      VpcId: !Ref VPC  
       Tags:
         - Key: "Name"
-          Value: "srs-cloud-sandbox-mao-SG"
+          Value: "srs-cloud-sandbox-mao-sg"
   ELBSecurityGroup:
     Type: "AWS::EC2::SecurityGroup"
     Properties:
@@ -28,14 +41,14 @@ Resources:
           FromPort: 80
           ToPort: 80
           CidrIp: "0.0.0.0/0"       
-      VpcId: "vpc-03fdd3b33e6bc9591"  
+      VpcId: !Ref VPC 
       Tags:
         - Key: "Name"
-          Value: "srs-cloud-sandbox-mao-SGELB"
+          Value: "srs-cloud-sandbox-mao-sgelb"
   WebServerInstance:
     Type: "AWS::EC2::Instance"
     Properties:
-      ImageId: "ami-0d421d84814b7d51c"
+      ImageId: "ami-0d421d84814b7d51c" # Amazon-Linux 
       InstanceType: "t2.micro"
       KeyName: "ClavesMario"
       SecurityGroupIds:
@@ -51,7 +64,7 @@ Resources:
           echo "<h1>Esta es mi web $(hostname -f)</h1>" > /var/www/html/index.html
       Tags:
         - Key: "Name"
-          Value: "srs-cloud-sandbox-mao-ec2WEB"
+          Value: "srs-cloud-sandbox-mao-web"
   MyELB:
     Type: "AWS::ElasticLoadBalancingV2::LoadBalancer"
     Properties:
@@ -68,7 +81,7 @@ Resources:
           Value: "60"
       Tags:
         - Key: "Name"
-          Value: "srs-cloud-sandbox-mao-ELB"
+          Value: "srs-cloud-sandbox-mao-elb"
   MyELBListener:
     Type: "AWS::ElasticLoadBalancingV2::Listener"
     Properties:
@@ -82,7 +95,7 @@ Resources:
     Type: "AWS::ElasticLoadBalancingV2::TargetGroup"
     Properties:
       Name: "MyELBTargetGroup"
-      VpcId: "vpc-03fdd3b33e6bc9591"
+      VpcId: !Ref VPC
       Port: 80
       Protocol: "HTTP"
       TargetType: "instance"
@@ -96,7 +109,7 @@ Resources:
     Properties:
       FileSystemTags:
         - Key: "Name"
-          Value: "srs-cloud-sandbox-mao-EFS"
+          Value: "srs-cloud-sandbox-mao-efs"
   MyEBSVolume:
     Type: "AWS::EC2::Volume"
     Properties:
@@ -105,7 +118,7 @@ Resources:
       VolumeType: "gp2"
       Tags:
         - Key: "Name"
-          Value: "srs-cloud-sandbox-mao-EBS"
+          Value: "srs-cloud-sandbox-mao-ebs"
   EBSVolumeAttachment:
     Type: "AWS::EC2::VolumeAttachment"
     Properties:
