@@ -1,27 +1,50 @@
 AWSTemplateFormatVersion: 2010-09-09
 
 Parameters: 
-
-  VPCId: 
-    Type: AWS::EC2::VPC::Id
-
-  Subnet:
-    Description: 
-    Type: AWS::EC2::Subnet::Id
-    Default: 
   
-  SecurityGroup:
-    Description: 
-    Type: AWS::EC2::SecurityGroup::GroupName
-    Default: 
+  OwnerName:
+    Description: Value of the tag Name
+    Type: String
+    Default: Sergio Misas
+
+  OwnerIP:
+     Description: IP of the owner
+     Type: String
+    
+  VPCId: 
+    Description: Id of the VPC in which all the content is going to be located 
+    Type: AWS::EC2::VPC::Id
+    Default: vpc-03fdd3b33e6bc9591
+
+  SubnetId:
+    Description: Id of the subnet where the content located
+    Type: AWS::EC2::Subnet::Id
+    Default: subnet-05a69f75c7584847b
 
   AvailabilityZone:
-    Description: 
+    Description: Availability zone where the resources are located
     Type: AWS::EC2::AvailabilityZone::Name
-    Default: 
+    Default: eu-west-1a
 
 Resources:
-
+  
+  SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group that lets only the owners IP
+      GroupName: srs-cloud-sandbox-smv-sg
+      SecurityGroupIngress: 
+        - IpProtocol: 
+          FromPort: 22
+          ToPort: 22
+          CidrIp: !Ref OwnerIP
+      Tags: 
+        - Key: Owner
+          Value: !Ref OwnerName
+        - Key: Name
+          Value: srs-cloud-sandbox-smv-sg
+      VpcId: !Ref VPCId
+      
   InstaciaEc2:
     Type: AWS::EC2::Instance
     Properties:
@@ -29,6 +52,11 @@ Resources:
       ImageId: ami-0f007bf1d5c770c6e
       InstanceType: "t2.micro"
       KeyName: KeyPairSergioM
+      Tags: 
+        - Key: Owner
+          Value: !Ref OwnerName
+        - Key: Name
+          Value: srs-cloud-sandbox-smv-ec2
       SecurityGroupIds:
        [!Ref SecurityGroup]
       SubnetId: !Ref Subnet
@@ -48,7 +76,10 @@ Resources:
       MultiAttachEnabled: false
       Size: 4
       Tags: 
-        Owner: "SergioMisas"
+        - Key: Owner
+          Value: !Ref OwnerName
+        - Key: Name
+          Value: srs-cloud-sandbox-smv-ebs
       VolumeType: "gp3"
   
   EfsFileSystem:
@@ -59,8 +90,11 @@ Resources:
       Encrypted: false
       FileSystemPolicy: JSON
       FileSystemTags: 
-        Owner: "Sergio Misas"
-      ReplicationConfiguration:
-        Destinations:
-          -
+        Owner: !Ref OwnerName
+      Tags: 
+        - Key: Owner
+          Value: !Ref OwnerName
+        - Key: Name
+          Value: srs-cloud-sandbox-smv-efs
+
       
