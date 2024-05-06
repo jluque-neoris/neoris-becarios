@@ -32,7 +32,24 @@ Parameters:
     Description: My public IP address
 
 Resources:
- SecurityGroup1A:
+  SecurityGroup1A:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: srs-cloud-sandbox-aca-sg
+      GroupDescription: Security group for Alfredo's EC2-1A instance
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: '22' # Port 22 for SSH protocol
+          ToPort: '22'
+          CidrIp: !Ref MyIP
+        - IpProtocol: tcp
+          FromPort: '80' # Port 80 for HTTP protocol
+          ToPort: '80'
+          CidrIp: !Ref MyIP
+        - Key: owner
+          Value: !Ref OwnerTagName
+  SecurityGroup1B:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupName: srs-cloud-sandbox-aca-sg
@@ -40,33 +57,29 @@ Resources:
       VpcId: !Ref VPC
       SecurityGroupIngress:
         - IpProtocol: tcp
-          FromPort: '22'
+          FromPort: '22' # Port 22 for SSH protocol
           ToPort: '22'
           CidrIp: !Ref MyIP
         - IpProtocol: tcp
-          FromPort: '80'
+          FromPort: '80' # Port 80 for HTTP protocol
           ToPort: '80'
           CidrIp: !Ref MyIP
         - Key: owner
           Value: !Ref OwnerTagName
- SecurityGroup1B:
+  ELBSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupName: srs-cloud-sandbox-aca-sg
-      GroupDescription: Security group for Alfredo's EC2-1B instance
+      GroupName: srs-cloud-sandbox-aca-elbsg
+      GroupDescription: Security group for Alfredo's ELB
       VpcId: !Ref VPC
       SecurityGroupIngress:
         - IpProtocol: tcp
-          FromPort: '22'
-          ToPort: '22'
-          CidrIp: !Ref MyIP
-        - IpProtocol: tcp
-          FromPort: '80'
+          FromPort: '80' # Port 80 for HTTP protocol
           ToPort: '80'
           CidrIp: !Ref MyIP
         - Key: owner
           Value: !Ref OwnerTagName
-  PublicEC21A: # EC2 for the subnet
+  PublicEC21A: # EC2 for the subnet in 1A AZ
     Type: AWS::EC2::Instance
     Properties:
       ImageId: 'ami-0f007bf1d5c770c6e' # Amazon-Linux EC2 type
@@ -80,15 +93,7 @@ Resources:
           Value: !Ref OwnerTagName
         - Key: Name
           Value: srs-cloud-sandbox-aca-ec2
-      UserData:  #Script to initiate web server in the EC2 instance
-        Fn::Base64: |
-          #!/bin/bash
-          yum update -y
-          yum install -y httpd
-          systemctl start httpd
-          systemctl enable httpd
-          echo "<h1>Ejercicio de aplicación web en EC2 de $(hostname)!</h1>" > /var/www/html/index.html
-  PublicEC21B: # EC2 for the subnet
+  PublicEC21B: # EC2 for the subnet in 1B AZ
     Type: AWS::EC2::Instance
     Properties:
       ImageId: 'ami-0f007bf1d5c770c6e' # Amazon-Linux EC2 type
@@ -110,7 +115,7 @@ Resources:
           systemctl start httpd
           systemctl enable httpd
           echo "<h1>Ejercicio de aplicación web en EC2 de $(hostname)!</h1>" > /var/www/html/index.html
-  EBS: # EBS volume
+  EBS: # EBS volume for EC2 in 1B AZ
     Type: AWS::EC2::Volume
     Properties:
       AvailabilityZone: !Ref AvailabilityZone1B
@@ -137,21 +142,27 @@ Resources:
           Value: !Ref OwnerTagName
         - Key: Name
           Value: srs-cloud-sandbox-aca-efs
-  ELB: # Elastic Load Balancer
+  ELB: # ELB for mi EC2 instances in 1A and 1B AZ's
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
     Properties:
-      EnforceSecurityGroupInboundRulesOnPrivateLinkTraffic: String
-      IpAddressType: String
-      LoadBalancerAttributes: 
-        - LoadBalancerAttribute
       Name: srs-cloud-sandbox-aca-elb
-      Scheme: String
-      SecurityGroups: 
-        - String
-      SubnetMappings: 
-        - SubnetMapping
-      Subnets: !Ref PublicSubnet1B
+      SecurityGroups: !Ref ELBSecurityGroup
+      AvailabilityZones:
+       - !Ref AvailabilityZone1A
+       - !Ref AvailabilityZone1B
+      Subnets: 
+        - !Ref PublicSubnet1A
+        - !Ref PublicSubnet1B
+      Listeners:
+       - LoadBalancerPort: '80'
+       - InstancePort: '80'
+       - Protocol: HTTP
+      HealthCheck:
+        Target: HTTP:80/
+        HealthyThreshold: '2'
+        UnhealthyThreshold: '3'
+        Interval: '10'
+        Timeout: '5'
       Tags: 
         - Key: Owner
           Value: !Ref OwnerTagName
-      Type: String         
