@@ -9,11 +9,13 @@ Parameters:
   PublicSubnet1A:
     Type: AWS::EC2::Subnet::Id
     Default: subnet-05a69f75c7584847b
-    Description: ID of the public subnet in eu-west-1a AZ where I will create my EC2 instance
+    Description: ID of the public subnet in eu-west-1a AZ where I will create my EC2
+      instance
   PublicSubnet1B:
     Type: AWS::EC2::Subnet::Id
     Default: subnet-0b2f22ba72d34584b
-    Description: ID of the public subnet in eu-west-1b AZ where I will create my EC2 instance
+    Description: ID of the public subnet in eu-west-1b AZ where I will create my EC2
+      instance
   AvailabilityZone1A:
     Type: String
     Default: eu-west-1a
@@ -22,7 +24,7 @@ Parameters:
     Type: String
     Default: eu-west-1b
     Description: Availability zone where I want to locate my resources
-  OwnerTagName: 
+  OwnerTagName:
     Type: String
     Default: Alfredo_Cuadrado
     Description: Tag to identify the resources that I have created
@@ -35,7 +37,7 @@ Resources:
   SecurityGroup1A:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupName: srs-cloud-sandbox-aca-sg
+      GroupName: srs-cloud-sandbox-aca-sg1A
       GroupDescription: Security group for Alfredo's EC2-1A instance
       VpcId: !Ref VPC
       SecurityGroupIngress:
@@ -52,7 +54,7 @@ Resources:
   SecurityGroup1B:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupName: srs-cloud-sandbox-aca-sg
+      GroupName: srs-cloud-sandbox-aca-sg1B
       GroupDescription: Security group for Alfredo's EC2-1B instance
       VpcId: !Ref VPC
       SecurityGroupIngress:
@@ -79,10 +81,11 @@ Resources:
           CidrIp: !Ref MyIP
         - Key: owner
           Value: !Ref OwnerTagName
-  PublicEC21A: # EC2 for the subnet in 1A AZ
+  PublicEC21A:
+    # EC2 for the subnet in 1A AZ
     Type: AWS::EC2::Instance
     Properties:
-      ImageId: 'ami-0f007bf1d5c770c6e' # Amazon-Linux EC2 type
+      ImageId: ami-0f007bf1d5c770c6e # Amazon-Linux EC2 type
       InstanceType: t2.micro
       KeyName: clavesalfredo # My key
       SubnetId: !Ref PublicSubnet1A
@@ -92,11 +95,12 @@ Resources:
         - Key: Owner
           Value: !Ref OwnerTagName
         - Key: Name
-          Value: srs-cloud-sandbox-aca-ec2
-  PublicEC21B: # EC2 for the subnet in 1B AZ
+          Value: srs-cloud-sandbox-aca-ec21A
+  PublicEC21B:
+    # EC2 for the subnet in 1B AZ
     Type: AWS::EC2::Instance
     Properties:
-      ImageId: 'ami-0f007bf1d5c770c6e' # Amazon-Linux EC2 type
+      ImageId: ami-0f007bf1d5c770c6e # Amazon-Linux EC2 type
       InstanceType: t2.micro
       KeyName: clavesalfredo # My key
       SubnetId: !Ref PublicSubnet1B
@@ -106,16 +110,18 @@ Resources:
         - Key: Owner
           Value: !Ref OwnerTagName
         - Key: Name
-          Value: srs-cloud-sandbox-aca-ec2
-      UserData:  #Script to initiate web server in the EC2 instance
-        Fn::Base64: |
-          #!/bin/bash
-          yum update -y
-          yum install -y httpd
-          systemctl start httpd
-          systemctl enable httpd
-          echo "<h1>Ejercicio de aplicación web en EC2 de $(hostname)!</h1>" > /var/www/html/index.html
-  EBS: # EBS volume for EC2 in 1B AZ
+          Value: srs-cloud-sandbox-aca-ec21B
+      UserData:
+        #Script to initiate web server in the EC2 instance
+        !Base64 |
+        #!/bin/bash
+        yum update -y
+        yum install -y httpd
+        systemctl start httpd
+        systemctl enable httpd
+        echo "<h1>Ejercicio de aplicación web en EC2 de $(hostname)!</h1>" > /var/www/html/index.html
+  EBS:
+    # EBS volume for EC2 in 1B AZ
     Type: AWS::EC2::Volume
     Properties:
       AvailabilityZone: !Ref AvailabilityZone1B
@@ -125,14 +131,16 @@ Resources:
         - Key: Owner
           Value: !Ref OwnerTagName
         - Key: Name
-          Value: srs-cloud-sandbox-aca-ebs
-  EBSVolumeAttachment: #Attachment of EBS volume to EC2 instance in EU-West-1B AZ
-    Type: "AWS::EC2::VolumeAttachment"
+          Value: srs-cloud-sandbox-aca-ebs1B
+  EBSVolumeAttachment:
+    #Attachment of EBS volume to EC2 instance in EU-West-1B AZ
+    Type: AWS::EC2::VolumeAttachment
     Properties:
       InstanceId: !Ref PublicEC21B
       VolumeId: !Ref EBS
-      Device: "/dev/sdf"
-  EFS: # EFS volume
+      Device: /dev/sdf
+  EFS:
+    # EFS volume
     Type: AWS::EFS::FileSystem
     Properties:
       PerformanceMode: generalPurpose
@@ -142,27 +150,43 @@ Resources:
           Value: !Ref OwnerTagName
         - Key: Name
           Value: srs-cloud-sandbox-aca-efs
-  ELB: # ELB for mi EC2 instances in 1A and 1B AZ's
+  ELB:
+    # ELB for mi EC2 instances in 1A and 1B AZ's
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
     Properties:
       Name: srs-cloud-sandbox-aca-elb
       SecurityGroups: !Ref ELBSecurityGroup
       AvailabilityZones:
-       - !Ref AvailabilityZone1A
-       - !Ref AvailabilityZone1B
-      Subnets: 
+        - !Ref AvailabilityZone1A
+        - !Ref AvailabilityZone1B
+      Subnets:
         - !Ref PublicSubnet1A
         - !Ref PublicSubnet1B
       Listeners:
-       - LoadBalancerPort: '80'
-       - InstancePort: '80'
-       - Protocol: HTTP
+        - LoadBalancerPort: '80'
+        - InstancePort: '80'
+        - Protocol: HTTP
       HealthCheck:
         Target: HTTP:80/
         HealthyThreshold: '2'
         UnhealthyThreshold: '3'
         Interval: '10'
         Timeout: '5'
-      Tags: 
+      Tags:
+        - Key: Owner
+          Value: !Ref OwnerTagName
+  ELBTargetGroup:
+    # ELB target group thar references to my EC2 instances in AZ 1A & 1B
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: srs-cloud-sandbox-aca-elbtargetgroup
+      VpcId: !Ref VPC
+      Port: 80
+      Protocol: HTTP
+      TargetType: instance
+      Targets:
+        - Id: !Ref PublicEC21A
+        - Id: !Ref PublicEC21B
+      Tags:
         - Key: Owner
           Value: !Ref OwnerTagName
