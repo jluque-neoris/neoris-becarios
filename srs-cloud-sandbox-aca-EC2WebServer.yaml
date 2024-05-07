@@ -144,7 +144,7 @@ Resources:
     Type: AWS::EFS::FileSystem
     Properties:
       PerformanceMode: generalPurpose
-      Encrypted: true
+      Encrypted: Verdadero
       FileSystemTags:
         - Key: Owner
           Value: !Ref OwnerTagName
@@ -156,37 +156,39 @@ Resources:
     Properties:
       Name: srs-cloud-sandbox-aca-elb
       SecurityGroups: !Ref ELBSecurityGroup
-      AvailabilityZones:
-        - !Ref AvailabilityZone1A
-        - !Ref AvailabilityZone1B
       Subnets:
         - !Ref PublicSubnet1A
         - !Ref PublicSubnet1B
-      Listeners:
-        - LoadBalancerPort: '80'
-        - InstancePort: '80'
-        - Protocol: HTTP
-      HealthCheck:
-        Target: HTTP:80/
-        HealthyThreshold: '2'
-        UnhealthyThreshold: '3'
-        Interval: '10'
-        Timeout: '5'
       Tags:
         - Key: Owner
           Value: !Ref OwnerTagName
+  ELBListener:
+    # ELB Listener for my ELB
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref ELB
+      Port: 80
+      Protocol: HTTP
   ELBTargetGroup:
     # ELB target group thar references to my EC2 instances in AZ 1A & 1B
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
+      HealthCheckEnabled: Verdadero
+      HealthCheckIntervalSeconds: 10
+      HealthCheckPort: 80
+      HealthCheckProtocol: HTTP
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      IpAddressType: !Ref MyIP
       Name: srs-cloud-sandbox-aca-elbtargetgroup
-      VpcId: !Ref VPC
       Port: 80
       Protocol: HTTP
-      TargetType: instance
-      Targets:
-        - Id: !Ref PublicEC21A
-        - Id: !Ref PublicEC21B
       Tags:
         - Key: Owner
           Value: !Ref OwnerTagName
+      Targets:
+        - Id: !Ref PublicEC21A
+        - Id: !Ref PublicEC21B
+      TargetType: Instance
+      UnhealthyThresholdCount: 3
+      VpcId: !Ref VPC
