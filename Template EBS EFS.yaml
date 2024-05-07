@@ -51,6 +51,7 @@ Resources:
           FromPort: '80' # Port 80 for HTTP protocol
           ToPort: '80'
           CidrIp: !Ref MyIP
+      Tags:
         - Key: owner
           Value: !Ref OwnerTagName
   SecurityGroup1B:
@@ -68,6 +69,7 @@ Resources:
           FromPort: '80' # Port 80 for HTTP protocol
           ToPort: '80'
           CidrIp: !Ref MyIP
+      Tags:
         - Key: owner
           Value: !Ref OwnerTagName
   PublicEC21A:

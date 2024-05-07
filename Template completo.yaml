@@ -31,7 +31,7 @@ Parameters:
     Description: Tag to identify the resources that I have created
   MyIP:
     Type: String # Not sure about this field
-    Default: 87.221.26.110
+    Default: 87.221.26.110/32
     Description: My public IP address
 
 Resources:
@@ -51,6 +51,7 @@ Resources:
           FromPort: '80' # Port 80 for HTTP protocol
           ToPort: '80'
           CidrIp: !Ref MyIP
+      Tags:
         - Key: owner
           Value: !Ref OwnerTagName
   SecurityGroup1B:
@@ -68,6 +69,7 @@ Resources:
           FromPort: '80' # Port 80 for HTTP protocol
           ToPort: '80'
           CidrIp: !Ref MyIP
+      Tags:
         - Key: owner
           Value: !Ref OwnerTagName
   ELBSecurityGroup:
@@ -81,6 +83,7 @@ Resources:
           FromPort: '80' # Port 80 for HTTP protocol
           ToPort: '80'
           CidrIp: !Ref MyIP
+      Tags:
         - Key: owner
           Value: !Ref OwnerTagName
   PublicEC21A:

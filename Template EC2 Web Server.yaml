@@ -31,7 +31,7 @@ Parameters:
     Description: Tag to identify the resources that I have created
   MyIP:
     Type: String # Not sure about this field
-    Default: 87.221.26.110
+    Default: 87.221.26.110/32
     Description: My public IP address
 
 Resources:
@@ -40,7 +40,7 @@ Resources:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupName: srs-cloud-sandbox-aca-sg1A
-      GroupDescription: Security group for Alfredo's EC2-1A instance
+      GroupDescription: Security group for my EC2 instance
       VpcId: !Ref VPC
       SecurityGroupIngress:
         - IpProtocol: tcp
@@ -51,13 +51,14 @@ Resources:
           FromPort: '80' # Port 80 for HTTP protocol
           ToPort: '80'
           CidrIp: !Ref MyIP
+      Tags:
         - Key: owner
           Value: !Ref OwnerTagName
   SecurityGroup1B:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupName: srs-cloud-sandbox-aca-sg1B
-      GroupDescription: Security group for Alfredo's EC2-1B instance
+      GroupDescription: Security group for my instance
       VpcId: !Ref VPC
       SecurityGroupIngress:
         - IpProtocol: tcp
@@ -68,6 +69,7 @@ Resources:
           FromPort: '80' # Port 80 for HTTP protocol
           ToPort: '80'
           CidrIp: !Ref MyIP
+      Tags:
         - Key: owner
           Value: !Ref OwnerTagName
   PublicEC21A:
