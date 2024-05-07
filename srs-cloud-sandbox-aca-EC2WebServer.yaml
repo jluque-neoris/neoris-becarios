@@ -144,7 +144,7 @@ Resources:
     Type: AWS::EFS::FileSystem
     Properties:
       PerformanceMode: generalPurpose
-      Encrypted: Verdadero
+      Encrypted: 'true'
       FileSystemTags:
         - Key: Owner
           Value: !Ref OwnerTagName
@@ -153,6 +153,7 @@ Resources:
   ELB:
     # ELB for mi EC2 instances in 1A and 1B AZ's
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Scheme: internet-facing
     Properties:
       Name: srs-cloud-sandbox-aca-elb
       SecurityGroups: !Ref ELBSecurityGroup
@@ -162,18 +163,11 @@ Resources:
       Tags:
         - Key: Owner
           Value: !Ref OwnerTagName
-  ELBListener:
-    # ELB Listener for my ELB
-    Type: AWS::ElasticLoadBalancingV2::Listener
-    Properties:
-      LoadBalancerArn: !Ref ELB
-      Port: 80
-      Protocol: HTTP
   ELBTargetGroup:
     # ELB target group thar references to my EC2 instances in AZ 1A & 1B
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
-      HealthCheckEnabled: Verdadero
+      HealthCheckEnabled: 'true'
       HealthCheckIntervalSeconds: 10
       HealthCheckPort: 80
       HealthCheckProtocol: HTTP
@@ -192,3 +186,12 @@ Resources:
       TargetType: Instance
       UnhealthyThresholdCount: 3
       VpcId: !Ref VPC
+  ELBListener:
+    # ELB Listener for my ELB
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref ELB
+      Port: 80
+      Protocol: HTTP
+      Default actions:
+        - TargetGroupArn: !Ref ELBTargetGroup
