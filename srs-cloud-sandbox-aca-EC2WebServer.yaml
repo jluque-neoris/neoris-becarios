@@ -2,6 +2,7 @@ AWSTemplateFormatVersion: '2010-09-09'
 Description: YAML template for AWS
 
 Parameters:
+  # References to the existing resources in AWS 
   VPC:
     Type: AWS::EC2::VPC::Id
     Default: vpc-03fdd3b33e6bc9591
@@ -17,23 +18,24 @@ Parameters:
     Description: ID of the public subnet in eu-west-1b AZ where I will create my EC2
       instance
   AvailabilityZone1A:
-    Type: String
+    Type: String # Not sure about this field
     Default: eu-west-1a
     Description: Availability zone where I want to locate my resources
   AvailabilityZone1B:
-    Type: String
+    Type: String # Not sure about this field
     Default: eu-west-1b
     Description: Availability zone where I want to locate my resources
   OwnerTagName:
-    Type: String
+    Type: String # Not sure about this field
     Default: Alfredo_Cuadrado
     Description: Tag to identify the resources that I have created
   MyIP:
-    Type: String
+    Type: String # Not sure about this field
     Default: 87.221.26.110
     Description: My public IP address
 
 Resources:
+  # New resources for the VPC
   SecurityGroup1A:
     Type: AWS::EC2::SecurityGroup
     Properties:
