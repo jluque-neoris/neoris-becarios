@@ -1,0 +1,154 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Plantilla de CloudFormation para crear una página web con un balanceador de carga
+
+Parameters: 
+  
+  OwnerName:
+    Description: Value of the tag Name
+    Type: String
+    Default: Sergio Misas
+
+  OwnerIP:
+     Description: IP of the owner
+     Type: String
+    
+  VPCId: 
+    Description: Id of the VPC in which all the content is going to be located 
+    Type: AWS::EC2::VPC::Id
+    Default: vpc-03fdd3b33e6bc9591
+
+  PublicSubnetId1:
+    Description: Id of public subnet 1
+    Type: AWS::EC2::Subnet::Id
+    Default: subnet-05a69f75c7584847b
+
+  PublicSubnetId2:
+    Description: Id of public subnet 2
+    Type: AWS::EC2::Subnet::Id
+    Default: subnet-0b2f22ba72d34584b
+
+  PrivateSubnet:
+    Description: Id of the private subnet
+    Type: AWS::EC2::Subnet::Id
+    Default: subnet-044785eec793f6c06 
+
+  AvailabilityZone: #Not needed
+    Description: Availability zone where the resources are located
+    Type: AWS::EC2::AvailabilityZone::Name
+    Default: eu-west-1a
+
+Resources:
+     
+  SecurityGroupBalancer:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group that allows http connection from the internet
+      GroupName: srs-cloud-sandbox-smv-sg-elb
+      SecurityGroupIngress: 
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0 #The internet
+      VpcId: !Ref VPCId #The vpc id
+      Tags: 
+        - Key: Owner
+          Value: !Ref OwnerName
+        - Key: Name
+          Value: srs-cloud-sandbox-smv-sg-elb
+
+  SecurityGroupEC2Web:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group that allows http connection from the owners IP
+      GroupName: srs-cloud-sandbox-smv-sg-ec2web
+      SecurityGroupIngress: 
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 10.0.0.0/21 #Subnet
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: !Ref OwnerIP
+      VpcId: !Ref VPCId #The vpc id
+      Tags: 
+        - Key: Owner
+          Value: !Ref OwnerName
+        - Key: Name
+          Value: srs-cloud-sandbox-smv-sg-ec2web
+
+  InstaciaWeb:
+    Type: AWS::EC2::Instance
+    Properties:
+      AvailabilityZone: !Ref AvailabilityZone
+      ImageId: ami-0f007bf1d5c770c6e #Amazon-Linux Image
+      InstanceType: "t2.micro"
+      KeyName: KeyPairSergioM
+      SecurityGroupIds:
+       [!Ref SecurityGroupEC2Web]
+      SubnetId: !Ref PrivateSubnet #Private subnet
+      UserData: 
+         Fn::Base64: |
+          #!/bin/bash
+          yum update -y
+          yum install -y httpd
+          systemctl start httpd
+          systemctl enable httpd
+          echo "<h1>Web de Sergio Misas Virseda</h1>" > /var/www/html/index.html
+      Tags: 
+        - Key: Owner
+          Value: !Ref OwnerName
+        - Key: Name
+          Value: srs-cloud-sandbox-smv-ec2web
+
+  ELB:
+    Type: AWS::ElasticLoadBalancing::LoadBalancer
+    Properties:
+      ConnectionSettings:
+        IdleTimeout: 120
+      Listeners: 
+        - !Ref ELBListener
+      LoadBalancerName: "srs-cloud-sandbox-smv-elb"
+      Scheme: "internet-facing"
+      Type: application
+      SecurityGroups: 
+        - !!Ref SecurityGroupEC2Web
+      Subnets: 
+        - !Ref SubnetId1
+        - !Ref SubnetId2
+      Tags: 
+        - Key: Owner
+          Value: !Ref OwnerName
+        - Key: Name
+          Value: srs-cloud-sandbox-smv-elb 
+
+  ELBListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref ELBTargetGroup #Target group for the listener
+      LoadBalancerArn: !Ref ELB #ELB for this listener
+      Port: 80
+      Protocol: "HTTP"
+      Tags: 
+        - Key: Owner
+          Value: !Ref OwnerName
+        - Key: Name
+          Value: srs-cloud-sandbox-smv-elb-listener 
+
+  ELBTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: "srs-cloud-sandbox-smv-elb-targetgroup"
+      Port: 80
+      Protocol: "HTTP"
+      TargetType: "instance"
+      Targets: 
+        - Id: !Ref InstaciaWeb #Instance that runs the web page
+      VpcId: !Ref VPCId #Id of the vpc
+      Tags: 
+        - Key: Owner
+          Value: !Ref OwnerName
+        - Key: Name
+          Value: srs-cloud-sandbox-smv-elb-targetgroup 
