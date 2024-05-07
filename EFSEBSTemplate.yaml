@@ -1,0 +1,241 @@
+#Dudas: El EFS no sería más optimo crearlo en la subred privada por seguridad?
+AWSTemplateFormatVersion: 2010-09-09
+Description: Template to create a web server with a private EC2 instance, a load balancer, EFS and EBS (Santino)
+
+Parameters:
+  OwnerTagName: 
+    Type: String
+    Default: Santino Cassarino
+    Description: Value of the "Owner" tag to be applied to the resources
+  
+  MyIP:
+    Type: String
+    Default: 87.221.52.127/32
+    Description: Your public IP address
+
+  VPC:
+    Type: AWS::EC2::VPC::Id
+    Default: vpc-03fdd3b33e6bc9591
+    Description: ID of the VPC 
+
+  PublicSubnet:
+    Type: AWS::EC2::Subnet::Id
+    Default: subnet-05a69f75c7584847b
+    Description: ID of the public 1a subnet 
+  
+  PublicSubnet2:
+    Type: AWS::EC2::Subnet::Id
+    Default: subnet-0b2f22ba72d34584b
+    Description: ID of the public 1b subnet 
+
+  AvailabilityZone:
+    Type: String
+    Default: eu-west-1a
+    Description: Availability zone where you want to locate your resources
+
+  PrivateSubnet:
+    Type: AWS::EC2::Subnet::Id
+    Default: subnet-044785eec793f6c06
+    Description: ID of the private subnet 1a
+
+
+
+Resources:
+  #Grupo de seguridad del balanceador que permite conexiones de fuera
+  SecurityGroupELB:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security Group that enables http from my IP
+      GroupName: srs-cloud-sandbox-sci-sgelb
+      SecurityGroupIngress: 
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: !Ref MyIP
+      Tags: 
+        - Key: Name
+          Value: srs-cloud-sandbox-sci-sgelb
+        - Key: Owner
+          Value: !Ref OwnerTagName
+      VpcId: !Ref VPC
+
+  ELB:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      LoadBalancerAttributes: 
+        - Key: idle_timeout.timeout_seconds
+          Value: "60"
+      Name: srs-cloud-sandbox-sci-elb
+      Scheme: internet-facing
+      SecurityGroups: 
+        - !Ref SecurityGroupELB
+      Subnets: 
+        - !Ref PublicSubnet
+        - !Ref PublicSubnet2
+      Tags: 
+        - Key: Owner
+          Value: !Ref OwnerTagName
+      Type: application
+
+#Reenvia las peticiones a la instancia privada
+  ELBTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: srs-cloud-sandbox-sci-elbtagr
+      Port: 80
+      Protocol: HTTP
+      TargetType: instance
+      Targets: 
+        - Id: !Ref EC2
+      VpcId: !Ref VPC
+      Tags: 
+        - Key: Owner
+          Value: !Ref OwnerTagName
+
+  ELBListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+        - TargetGroupArn: !Ref ELBTargetGroup
+          Type: forward
+      LoadBalancerArn: !Ref ELB 
+      Port: 80
+      Protocol: HTTP
+     
+#Grupo de seguridad de máquina ec2 intermediaria que permite conexiones de fuera
+  SecurityGroupBastion:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security Group that enables ssh from my IP
+      GroupName: srs-cloud-sandbox-sci-sgbastion
+      SecurityGroupIngress: 
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: !Ref MyIP
+        
+      Tags: 
+        - Key: Name
+          Value: srs-cloud-sandbox-sci-sgbastion
+        - Key: Owner
+          Value: !Ref OwnerTagName
+      VpcId: !Ref VPC
+
+  SecurityGroupEC2:
+    DependsOn:
+      - SecurityGroupELB
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security Group that enables ssh from the bastion host and http from my ELB
+      GroupName: srs-cloud-sandbox-sci-sgec2priv
+      SecurityGroupIngress: 
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          SourceSecurityGroupId: !GetAtt SecurityGroupBastion.GroupId
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          SourceSecurityGroupId: !GetAtt SecurityGroupELB.GroupId
+      Tags: 
+        - Key: Name
+          Value: srs-cloud-sandbox-sci-sgec2priv
+        - Key: Owner
+          Value: !Ref OwnerTagName
+      VpcId: !Ref VPC
+
+
+  SecurityGroupEFS:
+    DependsOn:
+      - SecurityGroupEC2
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security Group that allows traffic from my instance to the EFS
+      GroupName: srs-cloud-sandbox-sci-sgefs
+      SecurityGroupIngress: 
+        - IpProtocol: tcp
+          FromPort: 2049
+          ToPort: 2049
+          SourceSecurityGroupId: !GetAtt  SecurityGroupEC2.GroupId
+      Tags: 
+        - Key: Name
+          Value: srs-cloud-sandbox-sci-sgefs
+        - Key: Owner
+          Value: !Ref OwnerTagName
+      VpcId: !Ref VPC
+
+  EFS:
+    Type: AWS::EFS::FileSystem
+    Properties:
+      FileSystemTags: 
+        - Key: Name
+          Value: srs-cloud-sandbox-sci-efs
+        - Key: Owner
+          Value: !Ref OwnerTagName
+
+
+  MountTargetEFS:
+    Type: AWS::EFS::MountTarget
+    Properties:
+      FileSystemId: !Ref EFS 
+      SecurityGroups: 
+         [!Ref SecurityGroupEFS]
+      SubnetId: !Ref PublicSubnet 
+
+    
+ #Para poder conectarme a la EC2 privada, creo un bastion host, es decir, una EC2 p?blica cuyo fin es permitir el acceso por
+ #ssh a la privada     
+  BastionHost:
+    Type: AWS::EC2::Instance
+    Properties:
+      AvailabilityZone: !Ref AvailabilityZone
+      ImageId: ami-0f007bf1d5c770c6e #Amazon Linux 2023 
+      InstanceType: t2.micro
+      KeyName: ClavesSantino #Nombre de la clave que he creado en la web de AWS
+      SecurityGroupIds: 
+       [!Ref SecurityGroupBastion] 
+      SubnetId: !Ref PublicSubnet
+      Tags: 
+        - Key: Owner
+          Value: !Ref OwnerTagName
+        - Key: Name
+          Value: srs-cloud-sandbox-sci-bastion
+
+  EC2:
+    Type: AWS::EC2::Instance
+    Properties:
+      AvailabilityZone: !Ref AvailabilityZone
+      ImageId: ami-0f007bf1d5c770c6e #Amazon Linux 2023 
+      InstanceType: t2.micro
+      KeyName: ClavesSantino #Nombre de la clave que he creado en la web de AWS
+      SecurityGroupIds: 
+       [!Ref SecurityGroupEC2] 
+      SubnetId: !Ref PrivateSubnet #Aislada en la subred privada
+      #Creamos el volumen EBS
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvdf
+          Ebs:
+            VolumeSize: 2
+            VolumeType: gp3
+      Tags: 
+        - Key: Owner
+          Value: !Ref OwnerTagName
+        - Key: Name
+          Value: srs-cloud-sandbox-sci-ec2priv
+      UserData: 
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          yum update -y
+          yum install -y amazon-efs-utils httpd aws-cli
+          mkdir /mnt/efs
+          echo "${EFS}.efs.eu-west-1.amazonaws.com:/ /mnt/efs efs defaults,_netdev 0 0" >> /etc/fstab
+          mount -a
+          mkfs -t xfs /dev/xvdf
+          sudo mkdir /mnt/ebs
+          sudo mount /dev/xvdf /mnt/ebs/
+          systemctl enable httpd
+          systemctl start httpd
+          echo "<h1>Hello world from $(hostname)!</h1>" > /var/www/html/index.html
+
+  
+
