@@ -39,8 +39,8 @@ Resources:
   SecurityGroup1A:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupName: srs-cloud-sandbox-aca-sg1A
-      GroupDescription: Security group for Alfredo's EC2-1A instance
+      GroupName: srs-cloud-sandbox-aca-sg-1A
+      GroupDescription: Security group for EC2 instance in 1A
       VpcId: !Ref VPC
       SecurityGroupIngress:
         - IpProtocol: tcp
@@ -57,8 +57,8 @@ Resources:
   SecurityGroup1B:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupName: srs-cloud-sandbox-aca-sg1B
-      GroupDescription: Security group for Alfredo's EC2-1B instance
+      GroupName: srs-cloud-sandbox-aca-sg-1B
+      GroupDescription: Security group for EC2 instance in 1B
       VpcId: !Ref VPC
       SecurityGroupIngress:
         - IpProtocol: tcp
@@ -72,11 +72,26 @@ Resources:
       Tags:
         - Key: owner
           Value: !Ref OwnerTagName
+  EFSSecurityGroup:
+    DependsOn: !Ref SecurityGroup1A
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: srs-cloud-sandbox-aca-efs-sg
+      GroupDescription: Security group for EFS created in 1A
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: '2049'
+          ToPort: '2049'
+          SourceSecurityGroupId: !GetAtt SecurityGroup1A.GroupId
+      Tags:
+        - Key: Owner
+          Value: !Ref OwnerTagName
   ELBSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupName: srs-cloud-sandbox-aca-elbsg
-      GroupDescription: Security group for Alfredo's ELB
+      GroupName: srs-cloud-sandbox-aca-elb-sg
+      GroupDescription: Security group for ELB
       VpcId: !Ref VPC
       SecurityGroupIngress:
         - IpProtocol: tcp
@@ -95,12 +110,13 @@ Resources:
       KeyName: clavesalfredo # My key
       SubnetId: !Ref PublicSubnet1A
       AvailabilityZone: !Ref AvailabilityZone1A
-      SecurityGroupIds: !Ref SecurityGroup1A
+      SecurityGroupIds:
+        - !Ref SecurityGroup1A
       Tags:
         - Key: Owner
           Value: !Ref OwnerTagName
         - Key: Name
-          Value: srs-cloud-sandbox-aca-ec21A
+          Value: srs-cloud-sandbox-aca-ec2-1A
   PublicEC21B:
     # EC2 for the subnet in 1B AZ
     Type: AWS::EC2::Instance
@@ -110,12 +126,13 @@ Resources:
       KeyName: clavesalfredo # My key
       SubnetId: !Ref PublicSubnet1B
       AvailabilityZone: !Ref AvailabilityZone1B
-      SecurityGroupIds: !Ref SecurityGroup1B
+      SecurityGroupIds:
+        - !Ref SecurityGroup1B
       Tags:
         - Key: Owner
           Value: !Ref OwnerTagName
         - Key: Name
-          Value: srs-cloud-sandbox-aca-ec21B
+          Value: srs-cloud-sandbox-aca-ec2-1B
       UserData:
         #Script to initiate web server in the EC2 instance
         !Base64 |
@@ -124,7 +141,7 @@ Resources:
         yum install -y httpd
         systemctl start httpd
         systemctl enable httpd
-        echo "<h1>Ejercicio de aplicación web en EC2 de $(hostname)!</h1>" > /var/www/html/index.html
+        echo "<h1>Ejercicio de aplicación web en EC2</h1>" > /var/www/html/index.html
   EBS:
     # EBS volume for EC2 in 1B AZ
     Type: AWS::EC2::Volume
@@ -148,19 +165,27 @@ Resources:
     # EFS volume
     Type: AWS::EFS::FileSystem
     Properties:
+      AvailabilityZoneName: !Ref AvailabilityZone1A
       PerformanceMode: generalPurpose
-      Encrypted: 'true'
+      Encrypted: 'false'
       FileSystemTags:
         - Key: Owner
           Value: !Ref OwnerTagName
         - Key: Name
           Value: srs-cloud-sandbox-aca-efs
+  EFSMountTarget:
+    Type: AWS::EFS::MountTarget
+    Properties:
+      FileSystemId: !Ref EFS
+      SecurityGroups: !Ref EFSSecurityGroup
+      SubnetId: !Ref PublicSubnet1A
   ELB:
     # ELB for mi EC2 instances in 1A and 1B AZ's
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
     Properties:
       Name: srs-cloud-sandbox-aca-elb
-      SecurityGroups: !Ref ELBSecurityGroup
+      SecurityGroups:
+        - !Ref ELBSecurityGroup
       Scheme: internet-facing
       Subnets:
         - !Ref PublicSubnet1A

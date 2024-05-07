@@ -39,7 +39,7 @@ Resources:
   SecurityGroup1A:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupName: srs-cloud-sandbox-aca-sg1A
+      GroupName: srs-cloud-sandbox-aca-sg-1A
       GroupDescription: Security group for my EC2 instance
       VpcId: !Ref VPC
       SecurityGroupIngress:
@@ -57,7 +57,7 @@ Resources:
   SecurityGroup1B:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupName: srs-cloud-sandbox-aca-sg1B
+      GroupName: srs-cloud-sandbox-aca-sg-1B
       GroupDescription: Security group for my instance
       VpcId: !Ref VPC
       SecurityGroupIngress:
@@ -81,12 +81,13 @@ Resources:
       KeyName: clavesalfredo # My key
       SubnetId: !Ref PublicSubnet1A
       AvailabilityZone: !Ref AvailabilityZone1A
-      SecurityGroupIds: !Ref SecurityGroup1A
+      SecurityGroupIds:
+        - !Ref SecurityGroup1A
       Tags:
         - Key: Owner
           Value: !Ref OwnerTagName
         - Key: Name
-          Value: srs-cloud-sandbox-aca-ec21A
+          Value: srs-cloud-sandbox-aca-ec2-1A
   PublicEC21B:
     # EC2 for the subnet in 1B AZ
     Type: AWS::EC2::Instance
@@ -96,12 +97,13 @@ Resources:
       KeyName: clavesalfredo # My key
       SubnetId: !Ref PublicSubnet1B
       AvailabilityZone: !Ref AvailabilityZone1B
-      SecurityGroupIds: !Ref SecurityGroup1B
+      SecurityGroupIds:
+        - !Ref SecurityGroup1B
       Tags:
         - Key: Owner
           Value: !Ref OwnerTagName
         - Key: Name
-          Value: srs-cloud-sandbox-aca-ec21B
+          Value: srs-cloud-sandbox-aca-ec2-1B
       UserData:
         #Script to initiate web server in the EC2 instance
         !Base64 |
@@ -110,4 +112,4 @@ Resources:
         yum install -y httpd
         systemctl start httpd
         systemctl enable httpd
-        echo "<h1>Ejercicio de aplicación web en EC2 de $(hostname)!</h1>" > /var/www/html/index.html
+        echo "<h1>Ejercicio de aplicación web en EC2</h1>" > /var/www/html/index.html
