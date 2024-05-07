@@ -70,19 +70,6 @@ Resources:
           CidrIp: !Ref MyIP
         - Key: owner
           Value: !Ref OwnerTagName
-  ELBSecurityGroup:
-    Type: AWS::EC2::SecurityGroup
-    Properties:
-      GroupName: srs-cloud-sandbox-aca-elbsg
-      GroupDescription: Security group for Alfredo's ELB
-      VpcId: !Ref VPC
-      SecurityGroupIngress:
-        - IpProtocol: tcp
-          FromPort: '80' # Port 80 for HTTP protocol
-          ToPort: '80'
-          CidrIp: !Ref MyIP
-        - Key: owner
-          Value: !Ref OwnerTagName
   PublicEC21A:
     # EC2 for the subnet in 1A AZ
     Type: AWS::EC2::Instance
@@ -152,48 +139,3 @@ Resources:
           Value: !Ref OwnerTagName
         - Key: Name
           Value: srs-cloud-sandbox-aca-efs
-  ELB:
-    # ELB for mi EC2 instances in 1A and 1B AZ's
-    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
-    Scheme: internet-facing
-    Properties:
-      Name: srs-cloud-sandbox-aca-elb
-      SecurityGroups: !Ref ELBSecurityGroup
-      Subnets:
-        - !Ref PublicSubnet1A
-        - !Ref PublicSubnet1B
-      Tags:
-        - Key: Owner
-          Value: !Ref OwnerTagName
-  ELBTargetGroup:
-    # ELB target group thar references to my EC2 instances in AZ 1A & 1B
-    Type: AWS::ElasticLoadBalancingV2::TargetGroup
-    Properties:
-      HealthCheckEnabled: 'true'
-      HealthCheckIntervalSeconds: 10
-      HealthCheckPort: 80
-      HealthCheckProtocol: HTTP
-      HealthCheckTimeoutSeconds: 5
-      HealthyThresholdCount: 2
-      IpAddressType: !Ref MyIP
-      Name: srs-cloud-sandbox-aca-elbtargetgroup
-      Port: 80
-      Protocol: HTTP
-      Tags:
-        - Key: Owner
-          Value: !Ref OwnerTagName
-      Targets:
-        - Id: !Ref PublicEC21A
-        - Id: !Ref PublicEC21B
-      TargetType: Instance
-      UnhealthyThresholdCount: 3
-      VpcId: !Ref VPC
-  ELBListener:
-    # ELB Listener for my ELB
-    Type: AWS::ElasticLoadBalancingV2::Listener
-    Properties:
-      LoadBalancerArn: !Ref ELB
-      Port: 80
-      Protocol: HTTP
-      Default actions:
-        - TargetGroupArn: !Ref ELBTargetGroup

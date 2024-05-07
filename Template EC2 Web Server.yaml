@@ -1,0 +1,111 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: YAML template for AWS
+
+Parameters:
+  # References to the existing resources in AWS 
+  VPC:
+    Type: AWS::EC2::VPC::Id
+    Default: vpc-03fdd3b33e6bc9591
+    Description: ID of Jaime's VPC where I will locate my resources
+  PublicSubnet1A:
+    Type: AWS::EC2::Subnet::Id
+    Default: subnet-05a69f75c7584847b
+    Description: ID of the public subnet in eu-west-1a AZ where I will create my EC2
+      instance
+  PublicSubnet1B:
+    Type: AWS::EC2::Subnet::Id
+    Default: subnet-0b2f22ba72d34584b
+    Description: ID of the public subnet in eu-west-1b AZ where I will create my EC2
+      instance
+  AvailabilityZone1A:
+    Type: String # Not sure about this field
+    Default: eu-west-1a
+    Description: Availability zone where I want to locate my resources
+  AvailabilityZone1B:
+    Type: String # Not sure about this field
+    Default: eu-west-1b
+    Description: Availability zone where I want to locate my resources
+  OwnerTagName:
+    Type: String # Not sure about this field
+    Default: Alfredo_Cuadrado
+    Description: Tag to identify the resources that I have created
+  MyIP:
+    Type: String # Not sure about this field
+    Default: 87.221.26.110
+    Description: My public IP address
+
+Resources:
+  # New resources for the VPC
+  SecurityGroup1A:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: srs-cloud-sandbox-aca-sg1A
+      GroupDescription: Security group for Alfredo's EC2-1A instance
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: '22' # Port 22 for SSH protocol
+          ToPort: '22'
+          CidrIp: !Ref MyIP
+        - IpProtocol: tcp
+          FromPort: '80' # Port 80 for HTTP protocol
+          ToPort: '80'
+          CidrIp: !Ref MyIP
+        - Key: owner
+          Value: !Ref OwnerTagName
+  SecurityGroup1B:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: srs-cloud-sandbox-aca-sg1B
+      GroupDescription: Security group for Alfredo's EC2-1B instance
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: '22' # Port 22 for SSH protocol
+          ToPort: '22'
+          CidrIp: !Ref MyIP
+        - IpProtocol: tcp
+          FromPort: '80' # Port 80 for HTTP protocol
+          ToPort: '80'
+          CidrIp: !Ref MyIP
+        - Key: owner
+          Value: !Ref OwnerTagName
+  PublicEC21A:
+    # EC2 for the subnet in 1A AZ
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: ami-0f007bf1d5c770c6e # Amazon-Linux EC2 type
+      InstanceType: t2.micro
+      KeyName: clavesalfredo # My key
+      SubnetId: !Ref PublicSubnet1A
+      AvailabilityZone: !Ref AvailabilityZone1A
+      SecurityGroupIds: !Ref SecurityGroup1A
+      Tags:
+        - Key: Owner
+          Value: !Ref OwnerTagName
+        - Key: Name
+          Value: srs-cloud-sandbox-aca-ec21A
+  PublicEC21B:
+    # EC2 for the subnet in 1B AZ
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: ami-0f007bf1d5c770c6e # Amazon-Linux EC2 type
+      InstanceType: t2.micro
+      KeyName: clavesalfredo # My key
+      SubnetId: !Ref PublicSubnet1B
+      AvailabilityZone: !Ref AvailabilityZone1B
+      SecurityGroupIds: !Ref SecurityGroup1B
+      Tags:
+        - Key: Owner
+          Value: !Ref OwnerTagName
+        - Key: Name
+          Value: srs-cloud-sandbox-aca-ec21B
+      UserData:
+        #Script to initiate web server in the EC2 instance
+        !Base64 |
+        #!/bin/bash
+        yum update -y
+        yum install -y httpd
+        systemctl start httpd
+        systemctl enable httpd
+        echo "<h1>Ejercicio de aplicación web en EC2 de $(hostname)!</h1>" > /var/www/html/index.html
