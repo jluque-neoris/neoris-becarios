@@ -73,7 +73,8 @@ Resources:
         - Key: owner
           Value: !Ref OwnerTagName
   EFSSecurityGroup:
-    DependsOn: !Ref SecurityGroup1A
+    DependsOn:
+      - SecurityGroup1A
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupName: srs-cloud-sandbox-aca-efs-sg
@@ -177,7 +178,8 @@ Resources:
     Type: AWS::EFS::MountTarget
     Properties:
       FileSystemId: !Ref EFS
-      SecurityGroups: !Ref EFSSecurityGroup
+      SecurityGroups:
+        - !Ref EFSSecurityGroup
       SubnetId: !Ref PublicSubnet1A
   ELB:
     # ELB for mi EC2 instances in 1A and 1B AZ's
@@ -203,8 +205,7 @@ Resources:
       HealthCheckProtocol: HTTP
       HealthCheckTimeoutSeconds: 5
       HealthyThresholdCount: 2
-      IpAddressType: !Ref MyIP
-      Name: srs-cloud-sandbox-aca-elbtargetgroup
+      Name: srs-cloud-sandbox-aca-elb-tg
       Port: 80
       Protocol: HTTP
       Tags:
@@ -213,7 +214,7 @@ Resources:
       Targets:
         - Id: !Ref PublicEC21A
         - Id: !Ref PublicEC21B
-      TargetType: Instance
+      TargetType: instance
       UnhealthyThresholdCount: 3
       VpcId: !Ref VPC
   ELBListener:
@@ -223,5 +224,6 @@ Resources:
       LoadBalancerArn: !Ref ELB
       Port: 80
       Protocol: HTTP
-      Default actions:
+      DefaultActions:
         - TargetGroupArn: !Ref ELBTargetGroup
+          Type: forward
