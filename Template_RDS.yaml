@@ -10,21 +10,35 @@ Parameters:
   PublicSubnet1A:
     Type: AWS::EC2::Subnet::Id
     Default: subnet-05a69f75c7584847b
-    Description: ID of the public subnet in eu-west-1a AZ where I will create my EC2
-      instance
-  PublicSubnet1B:
+    Description: ID of the public subnet in eu-west-1a AZ instance
+  PrivateSubnet1A:
     Type: AWS::EC2::Subnet::Id
-    Default: subnet-0b2f22ba72d34584b
-    Description: ID of the public subnet in eu-west-1b AZ where I will create my EC2
-      instance
+    Default: subnet-044785eec793f6c06
+    Description: ID of the private subnet in eu-west-1a AZ
+  IsolatedSubnet1A:
+    Type: AWS::EC2::Subnet::Id
+    Default: subnet-001a928f428730716
+    Description: ID of the isolated subnet in eu-west-1a AZ
   AvailabilityZone1A:
     Type: String # Not sure about this field
     Default: eu-west-1a
     Description: Availability zone where I want to locate my resources
+  PublicSubnet1B:
+    Type: AWS::EC2::Subnet::Id
+    Default: subnet-0b2f22ba72d34584b
+    Description: ID of the public subnet in eu-west-1b AZ instance
+  PrivateSubnet1B:
+    Type: AWS::EC2::Subnet::Id
+    Default: subnet-000083b09eae1f329
+    Description: ID of the private subnet in eu-west-1b AZ
+  IsolatedSubnet1B:
+    Type: AWS::EC2::Subnet::Id
+    Default: subnet-0d5c2702c3509096a
+    Description: ID of the isolated subnet in eu-west-1b AZ
   AvailabilityZone1B:
     Type: String # Not sure about this field
     Default: eu-west-1b
-    Description: Availability zone where I want to locate my resources
+    Description: Second availability zone where I want to locate my resources
   OwnerTagName:
     Type: String # Not sure about this field
     Default: Alfredo_Cuadrado
@@ -33,68 +47,19 @@ Parameters:
     Type: String # Not sure about this field
     Default: 87.221.26.110/32
     Description: My public IP address
-
 Resources:
   # New resources for the VPC
   SecurityGroup1A:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupName: srs-cloud-sandbox-aca-sg-1A
-      GroupDescription: Security group for EC2 instance in 1A
+      GroupName: srs-cloud-sandbox-aca-sg-ec2-1a
+      GroupDescription: Security group for my EC2 instance in 1A public subnet
       VpcId: !Ref VPC
       SecurityGroupIngress:
         - IpProtocol: tcp
           FromPort: '22' # Port 22 for SSH protocol
           ToPort: '22'
           CidrIp: !Ref MyIP
-        - IpProtocol: tcp
-          FromPort: '80' # Port 80 for HTTP protocol
-          ToPort: '80'
-          CidrIp: !Ref MyIP
-      Tags:
-        - Key: owner
-          Value: !Ref OwnerTagName
-  SecurityGroup1B:
-    Type: AWS::EC2::SecurityGroup
-    Properties:
-      GroupName: srs-cloud-sandbox-aca-sg-1B
-      GroupDescription: Security group for EC2 instance in 1B
-      VpcId: !Ref VPC
-      SecurityGroupIngress:
-        - IpProtocol: tcp
-          FromPort: '22' # Port 22 for SSH protocol
-          ToPort: '22'
-          CidrIp: !Ref MyIP
-        - IpProtocol: tcp
-          FromPort: '80' # Port 80 for HTTP protocol
-          ToPort: '80'
-          CidrIp: !Ref MyIP
-      Tags:
-        - Key: owner
-          Value: !Ref OwnerTagName
-  EFSSecurityGroup:
-    DependsOn:
-      - SecurityGroup1A
-    Type: AWS::EC2::SecurityGroup
-    Properties:
-      GroupName: srs-cloud-sandbox-aca-efs-sg
-      GroupDescription: Security group for EFS created in 1A
-      VpcId: !Ref VPC
-      SecurityGroupIngress:
-        - IpProtocol: tcp
-          FromPort: '2049'
-          ToPort: '2049'
-          SourceSecurityGroupId: !GetAtt SecurityGroup1A.GroupId
-      Tags:
-        - Key: Owner
-          Value: !Ref OwnerTagName
-  ELBSecurityGroup:
-    Type: AWS::EC2::SecurityGroup
-    Properties:
-      GroupName: srs-cloud-sandbox-aca-elb-sg
-      GroupDescription: Security group for ELB
-      VpcId: !Ref VPC
-      SecurityGroupIngress:
         - IpProtocol: tcp
           FromPort: '80' # Port 80 for HTTP protocol
           ToPort: '80'
@@ -103,7 +68,7 @@ Resources:
         - Key: owner
           Value: !Ref OwnerTagName
   PublicEC21A:
-    # EC2 for the subnet in 1A AZ
+    # EC2 for the public subnet in 1A
     Type: AWS::EC2::Instance
     Properties:
       ImageId: ami-0f007bf1d5c770c6e # Amazon-Linux EC2 type
@@ -118,112 +83,55 @@ Resources:
           Value: !Ref OwnerTagName
         - Key: Name
           Value: srs-cloud-sandbox-aca-ec2-1A
-  PublicEC21B:
-    # EC2 for the subnet in 1B AZ
-    Type: AWS::EC2::Instance
+
+  SecurityGroupRDS:
+    Type: AWS::EC2::SecurityGroup
     Properties:
-      ImageId: ami-0f007bf1d5c770c6e # Amazon-Linux EC2 type
-      InstanceType: t2.micro
-      KeyName: clavesalfredo # My key
-      SubnetId: !Ref PublicSubnet1B
-      AvailabilityZone: !Ref AvailabilityZone1B
-      SecurityGroupIds:
-        - !Ref SecurityGroup1B
-      Tags:
-        - Key: Owner
-          Value: !Ref OwnerTagName
-        - Key: Name
-          Value: srs-cloud-sandbox-aca-ec2-1B
-      UserData:
-        #Script to initiate web server in the EC2 instance
-        !Base64 |
-        #!/bin/bash
-        yum update -y
-        yum install -y httpd
-        systemctl start httpd
-        systemctl enable httpd
-        echo "<h1>Ejercicio de aplicación web en EC2</h1>" > /var/www/html/index.html
-  EBS:
-    # EBS volume for EC2 in 1B AZ
-    Type: AWS::EC2::Volume
-    Properties:
-      AvailabilityZone: !Ref AvailabilityZone1B
-      Size: 8
-      VolumeType: gp2
-      Tags:
-        - Key: Owner
-          Value: !Ref OwnerTagName
-        - Key: Name
-          Value: srs-cloud-sandbox-aca-ebs1B
-  EBSVolumeAttachment:
-    #Attachment of EBS volume to EC2 instance in EU-West-1B AZ
-    Type: AWS::EC2::VolumeAttachment
-    Properties:
-      InstanceId: !Ref PublicEC21B
-      VolumeId: !Ref EBS
-      Device: /dev/sdf
-  EFS:
-    # EFS volume
-    Type: AWS::EFS::FileSystem
-    Properties:
-      AvailabilityZoneName: !Ref AvailabilityZone1A
-      PerformanceMode: generalPurpose
-      Encrypted: 'false'
-      FileSystemTags:
-        - Key: Owner
-          Value: !Ref OwnerTagName
-        - Key: Name
-          Value: srs-cloud-sandbox-aca-efs
-  EFSMountTarget:
-    Type: AWS::EFS::MountTarget
-    Properties:
-      FileSystemId: !Ref EFS
-      SecurityGroups:
-        - !Ref EFSSecurityGroup
-      SubnetId: !Ref PublicSubnet1A
-  ELB:
-    # ELB for mi EC2 instances in 1A and 1B AZ's
-    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
-    Properties:
-      Name: srs-cloud-sandbox-aca-elb
-      SecurityGroups:
-        - !Ref ELBSecurityGroup
-      Scheme: internet-facing
-      Subnets:
-        - !Ref PublicSubnet1A
-        - !Ref PublicSubnet1B
-      Tags:
-        - Key: Owner
-          Value: !Ref OwnerTagName
-  ELBTargetGroup:
-    # ELB target group thar references to my EC2 instances in AZ 1A & 1B
-    Type: AWS::ElasticLoadBalancingV2::TargetGroup
-    Properties:
-      HealthCheckEnabled: 'true'
-      HealthCheckIntervalSeconds: 10
-      HealthCheckPort: 80
-      HealthCheckProtocol: HTTP
-      HealthCheckTimeoutSeconds: 5
-      HealthyThresholdCount: 2
-      Name: srs-cloud-sandbox-aca-elb-tg
-      Port: 80
-      Protocol: HTTP
-      Tags:
-        - Key: Owner
-          Value: !Ref OwnerTagName
-      Targets:
-        - Id: !Ref PublicEC21A
-        - Id: !Ref PublicEC21B
-      TargetType: instance
-      UnhealthyThresholdCount: 3
+      GroupName: srs-cloud-sandbox-aca-sg-rds
+      GroupDescription: Security group for RDS EC2 instance
       VpcId: !Ref VPC
-  ELBListener:
-    # ELB Listener for my ELB
-    Type: AWS::ElasticLoadBalancingV2::Listener
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: '22' # Port 22 for SSH protocol
+          ToPort: '22'
+          CidrIp: !Ref MyIP
+        - IpProtocol: tcp
+          FromPort: '80' # Port 80 for HTTP protocol
+          ToPort: '80'
+          CidrIp: !Ref MyIP
+        - IpProtocol: tcp
+          FromPort: '3306' # Port 3306 to connect with MySQL DB (standard port)
+          ToPort: '3306'
+          CidrIp: !Ref MyIP
+      Tags:
+        - Key: owner
+          Value: !Ref OwnerTagName
+
+  RDSInstance:
+    # DB instance. The DB type will be MySQL with and SSD (gp3) with the minimun storage, 20 GB
+    Type: AWS::RDS::DBInstance
     Properties:
-      LoadBalancerArn: !Ref ELB
-      Port: 80
-      Protocol: HTTP
-      DefaultActions:
-        - TargetGroupArn: !Ref ELBTargetGroup
-          Type: forward
+      AllocatedStorage: 20 # Minimun storage for MySQL DB with SSD storage
+      AvailabilityZone: !Ref AvailabilityZone1A
+      DBInstanceClass: db.t2.micro # General propouse, minimun price per hour (6 credits)
+      DBInstanceIdentifier: srs-cloud-sandbox-aca-rds-ec2 # Name for my RDS EC2 instance
+      DBName: srs-cloud-sandbox-aca-rds-mysql # Name for my RDS EC2 instance
+      DBSubnetGroupName: !Ref PrivateSubnet1A # It will be alocated in the private subnet
+      Engine: mysql # MySQL as engine
+      EngineVersion: 8 # AWS admits MySQL 8.0 & MySQL 5.7
+      KmsKeyId: String
+      MasterUsername: admin
+      MasterUserPassword: 1234 # Change it using a secret
+      MasterUserSecret: MasterUserSecret
+      MultiAZ: Boolean
+      NetworkType: String
+      PerformanceInsightsKMSKeyId: String
+      Port: String
+      StorageType: gp3
+      VPCSecurityGroups:
+        - !Ref SecurityGroupRDS
+      Tags:
+        - Key: Owner
+          Value: !Ref OwnerTagName
+        - Key: Name
+          Value: srs-cloud-sandbox-aca-rds-ec2
