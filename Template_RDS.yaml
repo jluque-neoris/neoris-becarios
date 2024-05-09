@@ -83,7 +83,13 @@ Resources:
           Value: !Ref OwnerTagName
         - Key: Name
           Value: srs-cloud-sandbox-aca-ec2-1A
-
+  DBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: Subnet group for RDS
+      SubnetIds:
+        - !Ref PrivateSubnet1A # Subred privada en AZ 1A
+        - !Ref PrivateSubnet1B # Subred privada en AZ 1B
   SecurityGroupRDS:
     Type: AWS::EC2::SecurityGroup
     Properties:
@@ -92,46 +98,48 @@ Resources:
       VpcId: !Ref VPC
       SecurityGroupIngress:
         - IpProtocol: tcp
-          FromPort: '22' # Port 22 for SSH protocol
-          ToPort: '22'
-          CidrIp: !Ref MyIP
-        - IpProtocol: tcp
-          FromPort: '80' # Port 80 for HTTP protocol
-          ToPort: '80'
-          CidrIp: !Ref MyIP
-        - IpProtocol: tcp
-          FromPort: '3306' # Port 3306 to connect with MySQL DB (standard port)
+          FromPort: '3306' # Allows to connect with MySQL DB instance from my private subnet in 1A
           ToPort: '3306'
-          CidrIp: !Ref MyIP
+          CidrIp: 10.0.3.0/24
+        - IpProtocol: tcp
+          FromPort: '3306' # Allows to connect with MySQL DB instance from my public subnet in 1A
+          ToPort: '3306'
+          CidrIp: 10.0.1.0/24
       Tags:
         - Key: owner
           Value: !Ref OwnerTagName
-
+  DBSecret:
+    # We use a secret to create a password to access the DB
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Description: Secret for MasterUserPassword in RDS instance
+      GenerateSecretString:
+        SecretStringTemplate: '{"username": "admin"}'
+        GenerateStringKey: password
+        PasswordLength: 30 # 30 characters in the password for more security
+        ExcludeCharacters: '"@/\'
+      Tags:
+        - Key: Owner
+          Value: !Ref OwnerTagName
+        - Key: Name
+          Value: srs-cloud-sandbox-aca-secret
   RDSInstance:
     # DB instance. The DB type will be MySQL with and SSD (gp3) with the minimun storage, 20 GB
     Type: AWS::RDS::DBInstance
     Properties:
       AllocatedStorage: 20 # Minimun storage for MySQL DB with SSD storage
       AvailabilityZone: !Ref AvailabilityZone1A
-      DBInstanceClass: db.t2.micro # General propouse, minimun price per hour (6 credits)
+      DBInstanceClass: db.t3.micro # General propouse, minimun price per hour
       DBInstanceIdentifier: srs-cloud-sandbox-aca-rds-ec2 # Name for my RDS EC2 instance
-      DBName: srs-cloud-sandbox-aca-rds-mysql # Name for my RDS EC2 instance
-      DBSubnetGroupName: !Ref PrivateSubnet1A # It will be alocated in the private subnet
+      DBName: srs-cloud-sandbox-aca-db-mysql # Name for my RDS EC2 instance
+      DBSubnetGroupName: !Ref DBSubnetGroup # It will be located in the private subnet
       Engine: mysql # MySQL as engine
       EngineVersion: 8 # AWS admits MySQL 8.0 & MySQL 5.7
-      KmsKeyId: String
-      MasterUsername: admin
-      MasterUserPassword: 1234 # Change it using a secret
-      MasterUserSecret: MasterUserSecret
-      MultiAZ: Boolean
-      NetworkType: String
-      PerformanceInsightsKMSKeyId: String
-      Port: String
+      MasterUsername: admin # Standard name for master user name
+      MasterUserPassword: !Ref DBSecret # We use a secret as the password for accessing the DB
       StorageType: gp3
       VPCSecurityGroups:
-        - !Ref SecurityGroupRDS
+        - !GetAtt SecurityGroupRDS.GroupId
       Tags:
         - Key: Owner
           Value: !Ref OwnerTagName
-        - Key: Name
-          Value: srs-cloud-sandbox-aca-rds-ec2
