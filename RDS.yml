@@ -1,0 +1,322 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Template to create a web server with a public and a private EC2 instance, a load balancer, EFS and EBS, and an RDS (Maria)
+#Parámetros que se referencian en el template
+Parameters:
+  #El valor del tag owner
+  OwnerTagName:
+    Type: String
+    Default: Maria_Moreno
+    Description: Value of the "Owner" tag to be applied to the resources
+
+  #Mi dirección IP
+  MyIP:
+    Type: String
+    Default: 2.138.231.141/32
+    Description: Your public IP address
+
+  #ID de la VPC donde se despliegan mis recursos
+  VPC:
+    Type: AWS::EC2::VPC::Id
+    Default: vpc-03fdd3b33e6bc9591
+    Description: ID of the VPC
+
+  #Subred pública de la zona 1a
+  PublicSubnet:
+    Type: AWS::EC2::Subnet::Id
+    Default: subnet-05a69f75c7584847b
+    Description: ID of the public 1a subnet
+
+  #Subred pública de la zona 1b
+  PublicSubnet2:
+    Type: AWS::EC2::Subnet::Id
+    Default: subnet-0b2f22ba72d34584b
+    Description: ID of the public 1b subnet
+
+  #Subred aislada de la zona 1a
+  IsolatedSubnet:
+    Type: AWS::EC2::Subnet::Id
+    Default: subnet-001a928f428730716
+    Description: ID of the isolated 1a subnet
+
+  #Subred aislada de la zona 1b
+  IsolatedSubnet2:
+    Type: AWS::EC2::Subnet::Id
+    Default: subnet-0d5c2702c3509096a
+    Description: ID of the isolated 1b subnet
+
+  #Zona de disponibilidad donde se encuentran los recursos
+  AvailabilityZone:
+    Type: String
+    Default: eu-west-1a
+    Description: Availability zone where you want to locate your resources
+
+  #Subred privada de la zona 1a
+  PrivateSubnet:
+    Type: AWS::EC2::Subnet::Id
+    Default: subnet-044785eec793f6c06
+    Description: ID of the private subnet
+
+Resources:
+  #ELB Resources
+
+  #Grupo de seguridad para el ELB
+  SecurityGroupELB:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security Group that enables http from my IP
+      GroupName: srs-cloud-sandbox-mmr-sgelb
+      SecurityGroupIngress: #Permito tráfico http desde mi IP
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: !Ref MyIP
+      Tags:
+        - Key: Name
+          Value: srs-cloud-sandbox-mmr-sgelb
+        - Key: Owner
+          Value: !Ref OwnerTagName
+      VpcId: !Ref VPC
+
+  #Balanceador de carga
+  ELB:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      LoadBalancerAttributes:
+        - Key: idle_timeout.timeout_seconds #tiempo de espera para cerrar conexión inactiva
+          Value: "60"
+      Name: srs-cloud-sandbox-mmr-elb
+      Scheme: internet-facing
+      SecurityGroups: #Le asigno su security group
+        - !Ref SecurityGroupELB
+      Subnets: #Se encuentra ubicado en las subredes públicas de la VPC
+        - !Ref PublicSubnet
+        - !Ref PublicSubnet2
+      Tags:
+        - Key: Owner
+          Value: !Ref OwnerTagName
+      Type: application
+
+  #Target group del ELB para direccionar las solicitudes a mi EC2
+  ELBTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: srs-cloud-sandbox-mmr-elbtagr
+      Port: 80
+      Protocol: HTTP
+      TargetType: instance
+      Targets:
+        - Id: !Ref EC2 #EC2 en subred privada que se crea también en este template
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Owner
+          Value: !Ref OwnerTagName
+
+  #Listener que comprueba las solicitudes de conexión usando el puerto y protocolo que se especifican
+  ELBListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+        - TargetGroupArn: !Ref ELBTargetGroup
+          Type: forward #reenvía la solicitud al target group
+      LoadBalancerArn: !Ref ELB
+      Port: 80
+      Protocol: HTTP
+
+  #EFS Resources
+  #SG del EFS
+  SecurityGroupEFS:
+    DependsOn:
+      - SecurityGroupEC2
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security Group that allows traffic from my instance to the EFS
+      GroupName: srs-cloud-sandbox-mmr-sgefs
+      SecurityGroupIngress: #permite el tráfico de entrada desde el security group de la ec2 privada
+        - IpProtocol: tcp
+          FromPort: 2049
+          ToPort: 2049
+          SourceSecurityGroupId: !GetAtt SecurityGroupEC2.GroupId
+      Tags:
+        - Key: Name
+          Value: srs-cloud-sandbox-mmr-sgefs
+        - Key: Owner
+          Value: !Ref OwnerTagName
+      VpcId: !Ref VPC
+
+  #EFS
+  EFS:
+    Type: AWS::EFS::FileSystem
+    Properties:
+      FileSystemTags:
+        - Key: Name
+          Value: srs-cloud-sandbox-mmr-efs
+        - Key: Owner
+          Value: !Ref OwnerTagName
+
+  #Punto de montaje del EFS
+  MountTargetEFS:
+    Type: AWS::EFS::MountTarget
+    Properties:
+      FileSystemId: !Ref EFS
+      SecurityGroups: [!Ref SecurityGroupEFS]
+      SubnetId: !Ref PublicSubnet
+
+  #Para poder conectarme a la EC2 privada, creo un bastion host, es decir, una EC2 pública cuyo fin es permitir el acceso por
+  #ssh a la privada
+  BastionHost:
+    Type: AWS::EC2::Instance
+    Properties:
+      AvailabilityZone: !Ref AvailabilityZone
+      ImageId: ami-0f007bf1d5c770c6e #Amazon Linux 2023
+      InstanceType: t2.micro #Tipo de instancia de la capa gratuita
+      KeyName: mmr-key-pair #Mis claves para acceder por ssh a la instancia
+      SecurityGroupIds: [!Ref SecurityGroupBastion]
+      SubnetId: !Ref PublicSubnet
+      Tags:
+        - Key: Owner
+          Value: !Ref OwnerTagName
+        - Key: Name
+          Value: srs-cloud-sandbox-mmr-bastion
+
+  #SG del Bastion 
+  SecurityGroupBastion:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security Group that enables ssh from my IP
+      GroupName: srs-cloud-sandbox-mmr-sgbastion
+      SecurityGroupIngress: #Permito solo el trafico ssh desde mi ip para poder conectarme a la EC2
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: !Ref MyIP
+      Tags:
+        - Key: Name
+          Value: srs-cloud-sandbox-mmr-sgbastion
+        - Key: Owner
+          Value: !Ref OwnerTagName
+      VpcId: !Ref VPC
+
+  #EC2 Resources
+  #SG de la EC2 privada
+  SecurityGroupEC2:
+    DependsOn:
+      - SecurityGroupELB
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security Group that enables ssh from the bastion host and http from my ELB
+      GroupName: srs-cloud-sandbox-mmr-sgec2priv
+      SecurityGroupIngress:
+        - IpProtocol: tcp #Permito el tráfico ssh solo desde el SG de mi Bastion
+          FromPort: 22
+          ToPort: 22
+          SourceSecurityGroupId: !GetAtt SecurityGroupBastion.GroupId
+        - IpProtocol: tcp #Permito el tráfico http solo desde el SG de mi ELB
+          FromPort: 80
+          ToPort: 80
+          SourceSecurityGroupId: !GetAtt SecurityGroupELB.GroupId
+      Tags:
+        - Key: Name
+          Value: srs-cloud-sandbox-mmr-sgec2priv
+        - Key: Owner
+          Value: !Ref OwnerTagName
+      VpcId: !Ref VPC
+
+  #EC2 ubicada en subred privada
+  EC2:
+    Type: AWS::EC2::Instance
+    Properties:
+      AvailabilityZone: !Ref AvailabilityZone
+      ImageId: ami-0f007bf1d5c770c6e #Amazon Linux 2023
+      InstanceType: t2.micro #Tipo de instancia de la capa gratuita
+      KeyName: mmr-key-pair #Mis claves para acceder por ssh a la instancia
+      SecurityGroupIds: [!Ref SecurityGroupEC2]
+      SubnetId: !Ref PrivateSubnet
+      #Creamos el volumen EBS
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvdf
+          Ebs:
+            VolumeSize: 2 #2GB de tamaño
+            VolumeType: gp3
+      Tags:
+        - Key: Owner
+          Value: !Ref OwnerTagName
+        - Key: Name
+          Value: srs-cloud-sandbox-mmr-ec2priv
+      UserData: #Script que se ejecutará al iniciar por primera vez la EC2
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          yum update -y
+          yum install -y amazon-efs-utils httpd aws-cli
+          mkdir /mnt/efs
+          echo "${EFS}.efs.eu-west-1.amazonaws.com:/ /mnt/efs efs defaults,_netdev 0 0" >> /etc/fstab
+          mount -a
+          mkfs -t xfs /dev/xvdf
+          sudo mkdir /mnt/ebs
+          sudo mount /dev/xvdf /mnt/ebs/
+          systemctl enable httpd
+          systemctl start httpd
+          echo "<h1>Hello world from $(hostname)!</h1>" > /var/www/html/index.html
+
+  #RDS Resources
+
+  #Secret que contiene la contraseña encriptada para acceder a la base de datos
+  PasswordSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Description: Secret for RDS database access
+      GenerateSecretString: #Genera la contraseña con los parámetros que se establecen
+        ExcludeCharacters: \"@/\' #Excluyo los caracteres " , @ , / y ' a la hora de generar la contraseña
+        GenerateStringKey: password
+        PasswordLength: 18
+        SecretStringTemplate: '{"username": "myadmin"}' #asigno myadmin como nombre de usuario
+      Tags:
+        - Key: Owner
+          Value: !Ref OwnerTagName
+        - Key: Name
+          Value: srs-cloud-sandbox-mmr-secret
+
+  #Grupo de seguridad para la instancia RDS
+  SecurityGroupDB:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for RDS database
+      GroupName: srs-cloud-sandbox-mmr-rdssg
+      SecurityGroupIngress: #Permito solo el tráfico de entrada desde mi EC2 privada
+        - IpProtocol: tcp
+          FromPort: 3306
+          ToPort: 3306
+          SourceSecurityGroupId: !GetAtt SecurityGroupEC2.GroupId
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Owner
+          Value: !Ref OwnerTagName
+        - Key: Name
+          Value: srs-cloud-sandbox-mmr-rdssg
+
+  #Establezco las subredes en que se ubica la RDS
+  DBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: Subnet group for RDS database
+      SubnetIds: #Ubico mi base de datos en las subredes aisladas de la VPC
+        [!Ref IsolatedSubnet, !Ref IsolatedSubnet2]
+
+  #Defino la instancia RDS
+  DBInstance:
+    Type: "AWS::RDS::DBInstance"
+    Properties:
+      DBInstanceIdentifier: srs-cloud-sandbox-mmr-rds
+      AllocatedStorage: 20 #20GiB
+      DBInstanceClass: db.t3.micro #Base de datos de la capa gratuita
+      DBName: srscloudsandboxmmrrds #Nombre de la BBDD
+      Engine: mysql #motor de la base de datos
+      EngineVersion: "8.0" #Version de mysql
+      MasterUsername: "myadmin" #nombre de usuario de la base de datos
+      MasterUserPassword: !Sub "{{resolve:secretsmanager:$PasswordSecret:SecretString}}" #Para usar el secret de la password
+      VPCSecurityGroups: [!GetAtt SecurityGroupDB.GroupId]
+      DBSubnetGroupName: !Ref DBSubnetGroup
+      Tags:
+        - Key: Owner
+          Value: !Ref OwnerTagName
+        - Key: Name
+          Value: srs-cloud-sandbox-mmr-rds
