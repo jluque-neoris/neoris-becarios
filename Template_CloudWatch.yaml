@@ -1,0 +1,187 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: YAML template for AWS
+
+Parameters:
+  # References to the existing resources in AWS 
+  VPC:
+    Type: AWS::EC2::VPC::Id
+    Default: vpc-03fdd3b33e6bc9591
+    Description: ID of Jaime's VPC where I will locate my resources
+  PublicSubnet1A:
+    Type: AWS::EC2::Subnet::Id
+    Default: subnet-05a69f75c7584847b
+    Description: ID of the public subnet in eu-west-1a AZ where I will create my EC2
+      instance
+  PublicSubnet1B:
+    Type: AWS::EC2::Subnet::Id
+    Default: subnet-0b2f22ba72d34584b
+    Description: ID of the public subnet in eu-west-1b AZ where I will create my EC2
+      instance
+  AvailabilityZone1A:
+    Type: String # Not sure about this field
+    Default: eu-west-1a
+    Description: Availability zone where I want to locate my resources
+  AvailabilityZone1B:
+    Type: String # Not sure about this field
+    Default: eu-west-1b
+    Description: Availability zone where I want to locate my resources
+  OwnerTagName:
+    Type: String # Not sure about this field
+    Default: Alfredo_Cuadrado
+    Description: Tag to identify the resources that I have created
+  MyIP:
+    Type: String # Not sure about this field
+    Default: 87.221.26.110/32
+    Description: My public IP address
+Resources:
+  # New resources for the VPC
+  SecurityGroup1A:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: srs-cloud-sandbox-aca-sg-1A
+      GroupDescription: Security group for EC2 instance in 1A
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: '22' # Port 22 for SSH protocol
+          ToPort: '22'
+          CidrIp: !Ref MyIP
+        - IpProtocol: tcp
+          FromPort: '80' # Port 80 for HTTP protocol
+          ToPort: '80'
+          CidrIp: !Ref MyIP
+      Tags:
+        - Key: owner
+          Value: !Ref OwnerTagName
+  SecurityGroup1B:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: srs-cloud-sandbox-aca-sg-1B
+      GroupDescription: Security group for EC2 instance in 1B
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: '22' # Port 22 for SSH protocol
+          ToPort: '22'
+          CidrIp: !Ref MyIP
+        - IpProtocol: tcp
+          FromPort: '80' # Port 80 for HTTP protocol
+          ToPort: '80'
+          CidrIp: !Ref MyIP
+      Tags:
+        - Key: owner
+          Value: !Ref OwnerTagName
+  PublicEC21A:
+    # EC2 for the subnet in 1A AZ
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: ami-0f007bf1d5c770c6e # Amazon-Linux EC2 type
+      InstanceType: t2.micro
+      KeyName: clavesalfredo # My key
+      SubnetId: !Ref PublicSubnet1A
+      AvailabilityZone: !Ref AvailabilityZone1A
+      SecurityGroupIds:
+        - !Ref SecurityGroup1A
+      Tags:
+        - Key: Owner
+          Value: !Ref OwnerTagName
+        - Key: Name
+          Value: srs-cloud-sandbox-aca-ec2-1A
+  PublicEC21B:
+    # EC2 for the subnet in 1B AZ
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: ami-0f007bf1d5c770c6e # Amazon-Linux EC2 type
+      InstanceType: t2.micro
+      KeyName: clavesalfredo # My key
+      SubnetId: !Ref PublicSubnet1B
+      AvailabilityZone: !Ref AvailabilityZone1B
+      SecurityGroupIds:
+        - !Ref SecurityGroup1B
+      Tags:
+        - Key: Owner
+          Value: !Ref OwnerTagName
+        - Key: Name
+          Value: srs-cloud-sandbox-aca-ec2-1B
+      UserData:
+        #Script to initiate web server in the EC2 instance
+        !Base64 |
+        #!/bin/bash
+        yum update -y
+        yum install -y httpd
+        systemctl start httpd
+        systemctl enable httpd
+        echo "<h1>Ejercicio de aplicación web en EC2</h1>" > /var/www/html/index.html
+  EBS:
+    # EBS volume for EC2 in 1B AZ
+    Type: AWS::EC2::Volume
+    Properties:
+      AvailabilityZone: !Ref AvailabilityZone1B
+      Size: 8
+      VolumeType: gp2
+      Tags:
+        - Key: Owner
+          Value: !Ref OwnerTagName
+        - Key: Name
+          Value: srs-cloud-sandbox-aca-ebs1B
+  EBSVolumeAttachment:
+    #Attachment of EBS volume to EC2 instance in EU-West-1B AZ
+    Type: AWS::EC2::VolumeAttachment
+    Properties:
+      InstanceId: !Ref PublicEC21B
+      VolumeId: !Ref EBS
+      Device: /dev/sdf
+  SNSTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      Subscription:
+        - Endpoint: alfredo.cuadrado@hotmail.es
+          Protocol: email 
+  CWAlarmEC21A:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: New alarm to monitorize resorces consumed by PublicEC21A instance
+      Namespace: AWS/EC2
+      MetricName: CPUCreditUsage # To monitorize the credits that the instance uses
+      Dimensions:
+        - Name: InstanceId
+          Value: !Ref PublicEC21A
+      Statistic: Sum
+      Period: 300  # 300 seconds = 5 minutes
+      Threshold: 12 # The limit will be 12 credits
+      ComparisonOperator: GreaterThanThreshold
+      EvaluationPeriods: 1
+      AlarmActions:
+        - !Ref SNSTopic
+  CWAlarmEC21B:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: New alarm to monitorize resorces consumed by PublicEC21B instance
+      Namespace: AWS/EC2
+      MetricName: CPUUtilization # To monitorize the CPU usage of the instance
+      Dimensions:
+        - Name: InstanceId
+          Value: !Ref PublicEC21B
+      Statistic: Average
+      Period: 300  # 300 seconds = 5 minutes
+      Threshold: 90 # The limit will be 90% of the CPU
+      ComparisonOperator: GreaterThanThreshold
+      EvaluationPeriods: 1
+      AlarmActions:
+        - !Ref SNSTopic
+  CWAlarmEBS:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: New alarm to monitorize my EBS volume
+      Namespace: AWS/EBS
+      MetricName: VolumeUsage
+      Dimensions:
+        - Name: VolumeId
+          Value: !Ref EBS
+      Statistic: Maximum
+      Period: 300 # 300 seconds = 5 minutes
+      Threshold: 75 # The limit will be 75% of usage
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      EvaluationPeriods: 1
+      AlarmActions:
+        - !Ref SNSTopic
