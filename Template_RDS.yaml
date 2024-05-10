@@ -105,6 +105,10 @@ Resources:
           FromPort: '3306' # Allows to connect with MySQL DB instance from my public subnet in 1A
           ToPort: '3306'
           CidrIp: 10.0.1.0/24
+        - IpProtocol: tcp
+          FromPort: '3306' # Allows to connect with MySQL DB instance from my private subnet in 1B
+          ToPort: '3306'
+          CidrIp: 10.0.4.0/24
       Tags:
         - Key: owner
           Value: !Ref OwnerTagName
@@ -116,7 +120,7 @@ Resources:
       GenerateSecretString:
         SecretStringTemplate: '{"username": "admin"}'
         GenerateStringKey: password
-        PasswordLength: 16
+        PasswordLength: 12
         ExcludeCharacters: '"@/\'
       Tags:
         - Key: Owner
@@ -129,14 +133,14 @@ Resources:
     Properties:
       AllocatedStorage: 20 # Minimun storage for MySQL DB with SSD storage
       AvailabilityZone: !Ref AvailabilityZone1A
-      DBInstanceClass: db.t3.micro # General propouse, minimun price per hour
+      DBInstanceClass: db.t3.micro # General propouse, free tier
       DBInstanceIdentifier: srs-cloud-sandbox-aca-rds-ec2 # Name for my RDS EC2 instance
       DBName: ACADB # Name for my RDS EC2 instance
       DBSubnetGroupName: !Ref DBSubnetGroup # It will be located in the private subnet
       Engine: mysql # MySQL as engine
       EngineVersion: '8.0' # AWS admits MySQL 8.0 & MySQL 5.7
-      MasterUsername: admin # Standard name for master user name
-      MasterUserPassword: !Ref DBSecret # Error: "The parameter MasterUserPassword is not a valid password because it is longer than 41 characters"
+      MasterUsername: !Sub "{{resolve:secretsmanager:${DBSecret}::username}}" # Standard name for master user name
+      MasterUserPassword: !Sub "{{resolve:secretsmanager:${DBSecret}::password}}"
       VPCSecurityGroups:
         - !GetAtt SecurityGroupRDS.GroupId
       Tags:
