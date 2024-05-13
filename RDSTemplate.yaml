@@ -1,0 +1,111 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "Plantilla de CloudFormation para una aplicación web con ELB, EFS y EBS (Mario)"
+Parameters:
+
+  OwnerTagName:
+    Type: String
+    Default: Santino Cassarino
+    Description: Value of the "Owner" tag to be applied to the resources
+
+  MyIP:
+    Type: String
+    Default: 79.146.140.67/32
+    Description: Mi IP publica
+
+  VPC:
+    Type: AWS::EC2::VPC::Id
+    Default: vpc-03fdd3b33e6bc9591
+    Description: Id de la VPC de sandbox
+
+  PublicSubnet:
+    Type: AWS::EC2::Subnet::Id
+    Default: subnet-05a69f75c7584847b
+    Description: ID of the public 1a subnet
+
+  PublicSubnet2:
+    Type: AWS::EC2::Subnet::Id
+    Default: subnet-0b2f22ba72d34584b
+    Description: ID of the public 1b subnet
+
+  PrivateSubnet:
+    Type: AWS::EC2::Subnet::Id
+    Default: subnet-044785eec793f6c06
+    Description: ID of the private subnet 1a
+
+  IsolatedSubnet:
+    Type: AWS::EC2::Subnet::Id
+    Default: subnet-001a928f428730716
+    Description: ID of the isolated subnet 1a
+
+  IsolatedSubnet2:
+    Type: AWS::EC2::Subnet::Id
+    Default: subnet-0d5c2702c3509096a
+    Description: ID of the isolated subnet 1b
+
+Resources:
+
+  RDSSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: "Allow access to RDS instance"
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 3306
+          ToPort: 3306
+          CidrIp: "10.0.5.0/24" # subred aislada de mi VPC
+        - IpProtocol: tcp
+          FromPort: 3306
+          ToPort: 3306
+          CidrIp: "10.0.1.0/24" # subred publica de mi VPC
+        - IpProtocol: tcp
+          FromPort: 3306
+          ToPort: 3306
+          CidrIp: "10.0.3.0/24" # subred Privada de mi VPC
+      Tags:
+        - Key: "Name"
+          Value: "srs-cloud-sandbox-sci-SGrds"
+        - Key: "Owner"
+          Value: !Ref OwnerTagName
+
+  DBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: "Subnet group for RDS instance " # dos subredes en dierentes AZ por estandar para tener alta disponibilidad
+      SubnetIds:
+        - !Ref IsolatedSubnet  # subred aislada zona AZ 1a 
+        - !Ref IsolatedSubnet2   # subred aislada zona AZ 1b
+
+  DatabaseSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Description: "Secret for RDS database access"
+      GenerateSecretString:
+        SecretStringTemplate: '{"username": "admin"}'
+        GenerateStringKey: "password"
+        PasswordLength: 16
+        ExcludeCharacters: '"@/\\'
+      Tags:
+        - Key: "Name"
+          Value: "srs-cloud-sandbox-sci-secret-rds"
+        - Key: "Owner"
+          Value: !Ref OwnerTagName 
+
+  DBInstance:
+    Type: "AWS::RDS::DBInstance"
+    Properties:
+      DBInstanceIdentifier: "srs-cloud-sandbox-sci-rds"
+      AllocatedStorage: 20
+      DBInstanceClass:  db.t2.micro  
+      Engine: mysql
+      EngineVersion: "8.0"
+      MasterUsername: "admin"
+      MasterUserPassword: !Ref DatabaseSecret
+      VPCSecurityGroups:
+        - !GetAtt RDSSecurityGroup.GroupId
+      DBSubnetGroupName: !Ref DBSubnetGroup
+      Tags:
+        - Key: "Name"
+          Value: "srs-cloud-sandbox-sci-rds"
+        - Key: "Owner"
+          Value: !Ref OwnerTagName 
