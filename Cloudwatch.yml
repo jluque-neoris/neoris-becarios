@@ -11,7 +11,7 @@ Parameters:
   #Mi dirección IP
   MyIP:
     Type: String
-    Default: 2.138.44.220/32
+    Default: 2.138.231.141/32
     Description: Your public IP address
 
   #ID de la VPC donde se despliegan mis recursos
@@ -55,6 +55,12 @@ Parameters:
     Type: AWS::EC2::Subnet::Id
     Default: subnet-044785eec793f6c06
     Description: ID of the private subnet
+
+  #Dirección de email para recibir notificaciones
+  Email:
+    Type: String
+    Default: p-mariamoreno@neoris.com
+    Description: Email where you want to receive Cloudwatch alarm notifications
 
 Resources:
   #ELB Resources
@@ -123,7 +129,7 @@ Resources:
       Protocol: HTTP
 
   #EFS Resources
-  #SG del EFS
+
   SecurityGroupEFS:
     DependsOn:
       - SecurityGroupEC2
@@ -143,7 +149,6 @@ Resources:
           Value: !Ref OwnerTagName
       VpcId: !Ref VPC
 
-  #EFS
   EFS:
     Type: AWS::EFS::FileSystem
     Properties:
@@ -153,7 +158,6 @@ Resources:
         - Key: Owner
           Value: !Ref OwnerTagName
 
-  #Punto de montaje del EFS
   MountTargetEFS:
     Type: AWS::EFS::MountTarget
     Properties:
@@ -178,7 +182,6 @@ Resources:
         - Key: Name
           Value: srs-cloud-sandbox-mmr-bastion
 
-  #SG del Bastion 
   SecurityGroupBastion:
     Type: AWS::EC2::SecurityGroup
     Properties:
@@ -197,7 +200,6 @@ Resources:
       VpcId: !Ref VPC
 
   #EC2 Resources
-  #SG de la EC2 privada
   SecurityGroupEC2:
     DependsOn:
       - SecurityGroupELB
@@ -257,66 +259,75 @@ Resources:
           systemctl start httpd
           echo "<h1>Hello world from $(hostname)!</h1>" > /var/www/html/index.html
 
-  #RDS Resources
-
-  #Secret que contiene la contraseña encriptada para acceder a la base de datos
-  PasswordSecret:
-    Type: AWS::SecretsManager::Secret
+  #CloudWatch resources
+  #Alarma del uso de CPU de la EC2
+  CPUUtilizationAlarm:
+    Type: AWS::CloudWatch::Alarm
     Properties:
-      Description: Secret for RDS database access
-      GenerateSecretString: #Genera la contraseña con los parámetros que se establecen
-        ExcludeCharacters: \"@/\' #Excluyo los caracteres " , @ , / y ' a la hora de generar la contraseña
-        GenerateStringKey: password
-        PasswordLength: 18
-        SecretStringTemplate: '{"username": "myadmin"}' #asigno myadmin como nombre de usuario
-      Tags:
+      AlarmActions: 
+        [!Ref CPUUtilizationNotificationTopic] #Acción que lleva a cabo la alarma 
+      AlarmDescription: Alarm for CPU Utilization of EC2 instances
+      AlarmName: srs-cloud-sandbox-mmr-cwalarmcpu
+      ComparisonOperator: GreaterThanThreshold #Se activa cuando supera el límite fijado
+      Dimensions: #Recurso sobre el que actúa
+        - Name: InstanceID
+          Value: !Ref EC2
+      EvaluationPeriods: 1 
+      MetricName: CPUUtilization #métrica que mide
+      Namespace: AWS/EC2
+      Period: 60 #segundos
+      Statistic: Average #mide la media
+      Threshold: 70 #% de CPUUtilization
+      Unit: Percent 
+      Tags: 
         - Key: Owner
           Value: !Ref OwnerTagName
-        - Key: Name
-          Value: srs-cloud-sandbox-mmr-secret
 
-  #Grupo de seguridad para la instancia RDS
-  SecurityGroupDB:
-    Type: AWS::EC2::SecurityGroup
+  #Topic para notificar al usuario del uso de CPU
+  CPUUtilizationNotificationTopic:
+    Type: AWS::SNS::Topic
     Properties:
-      GroupDescription: Security group for RDS database
-      GroupName: srs-cloud-sandbox-mmr-rdssg
-      SecurityGroupIngress: #Permito solo el tráfico de entrada desde mi EC2 privada
-        - IpProtocol: tcp
-          FromPort: 3306
-          ToPort: 3306
-          SourceSecurityGroupId: !GetAtt SecurityGroupEC2.GroupId
-      VpcId: !Ref VPC
-      Tags:
+      DisplayName: srs-cloud-sandbox-mmr-cputopic
+      Subscription: #Para enviar un email notificando
+        - Endpoint: !Ref Email
+          Protocol: email
+      TopicName: srs-cloud-sandbox-mmr-cputopic
+      Tags: 
         - Key: Owner
           Value: !Ref OwnerTagName
-        - Key: Name
-          Value: srs-cloud-sandbox-mmr-rdssg
 
-  #Establezco las subredes en que se ubica la RDS
-  DBSubnetGroup:
-    Type: AWS::RDS::DBSubnetGroup
+  #Alarma de solicitudes HTTP al ELB
+  RequestAlarm:
+    Type: AWS::CloudWatch::Alarm
     Properties:
-      DBSubnetGroupDescription: Subnet group for RDS database
-      SubnetIds: #Ubico mi base de datos en las subredes aisladas de la VPC
-        [!Ref IsolatedSubnet, !Ref IsolatedSubnet2]
-
-  #Defino la instancia RDS
-  DBInstance:
-    Type: "AWS::RDS::DBInstance"
-    Properties:
-      DBInstanceIdentifier: srs-cloud-sandbox-mmr-rds
-      AllocatedStorage: 20 #20GiB
-      DBInstanceClass: db.t3.micro #Base de datos de la capa gratuita
-      DBName: srscloudsandboxmmrrds #Nombre de la BBDD
-      Engine: mysql #motor de la base de datos
-      EngineVersion: "8.0" #Version de mysql
-      MasterUsername: "myadmin" #nombre de usuario de la base de datos
-      MasterUserPassword: !Sub "{{resolve:secretsmanager:${PasswordSecret}::password}}" #Para usar el secret de la password
-      VPCSecurityGroups: [!GetAtt SecurityGroupDB.GroupId]
-      DBSubnetGroupName: !Ref DBSubnetGroup
-      Tags:
+      AlarmActions: 
+        [!Ref RequestAlarmNotificationTopic] #Acción que lleva a cabo la alarma 
+      AlarmDescription: Alarm when request count of the ELB exceeds threshold
+      AlarmName: srs-cloud-sandbox-mmr-cwalarmelb
+      ComparisonOperator: GreaterThanThreshold #Se activa cuando supera el límite fijado
+      Dimensions: #Recurso sobre el que actúa 
+         - Name: ELB
+           Value: !Ref ELB
+      EvaluationPeriods: 1 
+      MetricName: RequestCount #Métrica que mide
+      Namespace: AWS/ELB
+      Period: 60 #segundos
+      Statistic: Sum #Mide la suma de eventos
+      Threshold: 1000 #límite para que se active
+      Unit: Count
+      Tags: 
         - Key: Owner
           Value: !Ref OwnerTagName
-        - Key: Name
-          Value: srs-cloud-sandbox-mmr-rds
+
+  #Topic para notificar al usuario de subida de un archivo al EBS
+  RequestAlarmNotificationTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      DisplayName: srs-cloud-sandbox-mmr-elbtopic
+      Subscription: #Para enviar un email notificando
+        - Endpoint: !Ref Email
+          Protocol: email
+      TopicName: srs-cloud-sandbox-mmr-elbtopic
+      Tags: 
+        - Key: Owner
+          Value: !Ref OwnerTagName
