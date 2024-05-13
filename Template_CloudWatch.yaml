@@ -136,7 +136,7 @@ Resources:
     Properties:
       Subscription:
         - Endpoint: alfredo.cuadrado@hotmail.es
-          Protocol: email 
+          Protocol: email
   CWAlarmEC21A:
     Type: AWS::CloudWatch::Alarm
     Properties:
@@ -147,7 +147,7 @@ Resources:
         - Name: InstanceId
           Value: !Ref PublicEC21A
       Statistic: Sum
-      Period: 300  # 300 seconds = 5 minutes
+      Period: 300 # 300 seconds = 5 minutes
       Threshold: 12 # The limit will be 12 credits
       ComparisonOperator: GreaterThanThreshold
       EvaluationPeriods: 1
@@ -163,7 +163,7 @@ Resources:
         - Name: InstanceId
           Value: !Ref PublicEC21B
       Statistic: Average
-      Period: 300  # 300 seconds = 5 minutes
+      Period: 300 # 300 seconds = 5 minutes
       Threshold: 90 # The limit will be 90% of the CPU
       ComparisonOperator: GreaterThanThreshold
       EvaluationPeriods: 1

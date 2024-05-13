@@ -139,8 +139,8 @@ Resources:
       DBSubnetGroupName: !Ref DBSubnetGroup # It will be located in the private subnet
       Engine: mysql # MySQL as engine
       EngineVersion: '8.0' # AWS admits MySQL 8.0 & MySQL 5.7
-      MasterUsername: !Sub "{{resolve:secretsmanager:${DBSecret}::username}}" # Standard name for master user name
-      MasterUserPassword: !Sub "{{resolve:secretsmanager:${DBSecret}::password}}"
+      MasterUsername: !Sub '{{resolve:secretsmanager:${DBSecret}::username}}' # Standard name for master user name
+      MasterUserPassword: !Sub '{{resolve:secretsmanager:${DBSecret}::password}}'
       VPCSecurityGroups:
         - !GetAtt SecurityGroupRDS.GroupId
       Tags:
