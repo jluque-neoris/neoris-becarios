@@ -37,19 +37,19 @@ Resources:
         - IpProtocol: 
           FromPort: 22
           ToPort: 22
-          CidrIp: !Ref OwnerIP
+          CidrIp: !Ref OwnerIP #The IP of the owner 
       Tags: 
         - Key: Owner
           Value: !Ref OwnerName
         - Key: Name
           Value: srs-cloud-sandbox-smv-sg
-      VpcId: !Ref VPCId
+      VpcId: !Ref VPCId #Id of the VPC in which the content is going to be located
       
   InstaciaEc2:
     Type: AWS::EC2::Instance
     Properties:
-      AvailabilityZone: !Ref AvailabilityZone
-      ImageId: ami-0f007bf1d5c770c6e
+      AvailabilityZone: !Ref AvailabilityZone #Availability zone of the subnet in which the instance is located
+      ImageId: ami-0f007bf1d5c770c6e #Amazon-Linux
       InstanceType: "t2.micro"
       KeyName: KeyPairSergioM
       Tags: 
@@ -58,23 +58,23 @@ Resources:
         - Key: Name
           Value: srs-cloud-sandbox-smv-ec2
       SecurityGroupIds:
-       [!Ref SecurityGroup]
-      SubnetId: !Ref Subnet
+       [!Ref SecurityGroup] #Security group that lets the owner connect via ssh
+      SubnetId: !Ref Subnet #Subnet in which the instance is located
       Volumes:
            - !Ref EbsVolume: 
              Device: "xvdb"
-      UserData: "cd .. & cd .. & sudo mkdir vol & sudo file -s /dev/xvdb & sudo mkfs -t xfs /dev/xvdb & sudo mount /dev/xvdb /vol"
+      UserData: "cd .. & cd .. & sudo mkdir vol & sudo file -s /dev/xvdb & sudo mkfs -t xfs /dev/xvdb & sudo mount /dev/xvdb /vol" #Format and Mount commands
 
 
   EbsVolume:
     Type: AWS::EC2::Volume
     Properties:
       AutoEnableIO: false
-      AvailabilityZone: !Ref AvailabilityZone # Required
+      AvailabilityZone: !Ref AvailabilityZone #Availability zone of the subnet in which the volume is located
       Encrypted: false
       Iops: 3000
       MultiAttachEnabled: false
-      Size: 4
+      Size: 4 #Size in GB 
       Tags: 
         - Key: Owner
           Value: !Ref OwnerName
@@ -85,7 +85,7 @@ Resources:
   EfsFileSystem:
     Type: AWS::EFS::FileSystem
     Properties:
-      AvailabilityZoneName: !Ref AvailabilityZone
+      AvailabilityZoneName: !Ref AvailabilityZone #Availability zone of the subnet in which the filesystem is located
       BypassPolicyLockoutSafetyCheck: false
       Encrypted: false
       FileSystemPolicy: JSON
