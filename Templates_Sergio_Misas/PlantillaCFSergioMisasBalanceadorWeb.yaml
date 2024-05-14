@@ -1,3 +1,6 @@
+# Last modified by Sergio Misas 14/05/2024
+# This yaml creates an EC2 instance located in a private subnet that runs a web with a security group that allows the owner to connect via ssh
+# It also creates an ELB that switches the connection of the instance to the internet between two public subnets
 AWSTemplateFormatVersion: 2010-09-09
 Description: Plantilla de CloudFormation para crear una página web con un balanceador de carga
 
@@ -32,13 +35,14 @@ Parameters:
     Type: AWS::EC2::Subnet::Id
     Default: subnet-044785eec793f6c06 
 
-  AvailabilityZone: #Not needed
+  AvailabilityZone: 
     Description: Availability zone where the resources are located
     Type: AWS::EC2::AvailabilityZone::Name
     Default: eu-west-1a
 
 Resources:
-     
+
+  # Security group that allows the balancer to access the internet   
   SecurityGroupBalancer:
     Type: AWS::EC2::SecurityGroup
     Properties:
@@ -56,6 +60,7 @@ Resources:
         - Key: Name
           Value: srs-cloud-sandbox-smv-sg-elb
 
+  # Security group that allows the instance to access the internet via the ELB and the public subnets, allows ssh connection to the owners IP   
   SecurityGroupEC2Web:
     Type: AWS::EC2::SecurityGroup
     Properties:
@@ -77,6 +82,7 @@ Resources:
         - Key: Name
           Value: srs-cloud-sandbox-smv-sg-ec2web
 
+  # EC2 Instance that runs the web page
   InstaciaWeb:
     Type: AWS::EC2::Instance
     Properties:
@@ -101,6 +107,7 @@ Resources:
         - Key: Name
           Value: srs-cloud-sandbox-smv-ec2web
 
+  # ELB that switches the EC2 http connection between the 2 public subnets
   ELB:
     Type: AWS::ElasticLoadBalancing::LoadBalancer
     Properties:
@@ -122,6 +129,7 @@ Resources:
         - Key: Name
           Value: srs-cloud-sandbox-smv-elb 
 
+  # Listener for the ELB that defines the protocol ant he port for its target group
   ELBListener:
     Type: AWS::ElasticLoadBalancingV2::Listener
     Properties:
@@ -137,6 +145,7 @@ Resources:
         - Key: Name
           Value: srs-cloud-sandbox-smv-elb-listener 
 
+  # Target group for the ELB, it targets the EC2 instance that runs the web page inside the specified VPC
   ELBTargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:

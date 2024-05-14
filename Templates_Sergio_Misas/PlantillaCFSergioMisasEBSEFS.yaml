@@ -1,3 +1,6 @@
+# Last modified by Sergio Misas 14/05/2024
+# This yaml creates an EC2 instance with a security group that allows the owner to connect via ssh
+# It also mounts a EFS filesystem and an EBS volume to the instance
 AWSTemplateFormatVersion: 2010-09-09
 
 Parameters: 
@@ -28,6 +31,7 @@ Parameters:
 
 Resources:
   
+  # Security group that allows the owner to connect via ssh
   SecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
@@ -45,6 +49,7 @@ Resources:
           Value: srs-cloud-sandbox-smv-sg
       VpcId: !Ref VPCId #Id of the VPC in which the content is going to be located
       
+  # EC2 instance located in the VPC and Subnet from the parameters, runs a command that mounts the EBS and EFS
   InstaciaEc2:
     Type: AWS::EC2::Instance
     Properties:
@@ -65,7 +70,7 @@ Resources:
              Device: "xvdb"
       UserData: "cd .. & cd .. & sudo mkdir vol & sudo file -s /dev/xvdb & sudo mkfs -t xfs /dev/xvdb & sudo mount /dev/xvdb /vol" #Format and Mount commands
 
-
+  # EBS volume with a size of 4 GB located in the same Availability zone as the instance
   EbsVolume:
     Type: AWS::EC2::Volume
     Properties:
@@ -82,6 +87,7 @@ Resources:
           Value: srs-cloud-sandbox-smv-ebs
       VolumeType: "gp3"
   
+  # EFS filesystem located in the same Availability zone as the instance
   EfsFileSystem:
     Type: AWS::EFS::FileSystem
     Properties:
