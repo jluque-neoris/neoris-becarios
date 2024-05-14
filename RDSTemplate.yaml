@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: "2010-09-09"
-Description: "Plantilla de CloudFormation para una aplicación web con ELB, EFS y EBS (Mario)"
+Description: "CloudFormation template for a RDS database(Santino)"
 Parameters:
 
   OwnerTagName:
