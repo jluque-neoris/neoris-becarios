@@ -1,0 +1,162 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "Plantilla de CloudFormation para una aplicación web con ELB, EFS y EBS (Mario)"
+Parameters:
+  MyIP:
+    Type: String
+    Default: 79.146.140.67/32
+    Description: Mi IP publica
+  VPC:
+    Type: AWS::EC2::VPC::Id
+    Default: vpc-03fdd3b33e6bc9591
+    Description: Id de la VPC de sandbox
+  PublicSubnet1:
+    Type: AWS::EC2::Subnet::Id
+    Default: subnet-05a69f75c7584847b
+    Description: ID of the public subnet 
+  PublicSubnet2:
+    Type: AWS::EC2::Subnet::Id
+    Default: subnet-0b2f22ba72d34584b
+    Description: ID of the public subnet 
+
+Resources:  
+  WebServerSecurityGroup:
+    Type: "AWS::EC2::SecurityGroup"
+    Properties:
+      GroupDescription: "Allow traffic HTTP and SSH only for my IP"
+      SecurityGroupIngress:
+        - IpProtocol: "tcp"
+          FromPort: 80
+          ToPort: 80
+          CidrIp: "10.0.0.0/21"
+        - IpProtocol: "tcp"
+          FromPort: 22
+          ToPort: 22
+          CidrIp: !Ref MyIP # my IP
+      VpcId: !Ref VPC  
+      Tags:
+        - Key: "Name"
+          Value: "srs-cloud-sandbox-mao-sg"
+  ELBSecurityGroup:
+    Type: "AWS::EC2::SecurityGroup"
+    Properties:
+      GroupDescription: "Allow traffic HTTP from internet"
+      SecurityGroupIngress:
+        - IpProtocol: "tcp"
+          FromPort: 80
+          ToPort: 80
+          CidrIp: "0.0.0.0/0"       
+      VpcId: !Ref VPC 
+      Tags:
+        - Key: "Name"
+          Value: "srs-cloud-sandbox-mao-sgelb"
+  WebServerInstance:
+    Type: "AWS::EC2::Instance"
+    Properties:
+      ImageId: "ami-0d421d84814b7d51c" # Amazon-Linux instance
+      InstanceType: "t2.micro"
+      KeyName: "ClavesMario"
+      SecurityGroupIds:
+        - !Ref WebServerSecurityGroup
+      SubnetId: "subnet-044785eec793f6c06"  #private subnet for server
+      UserData:
+        Fn::Base64: |
+          #!/bin/bash
+          yum update -y
+          yum install -y httpd
+          systemctl start httpd
+          systemctl enable httpd
+          echo "<h1>Esta es mi web $(hostname -f)</h1>" > /var/www/html/index.html
+      Tags:
+        - Key: "Name"
+          Value: "srs-cloud-sandbox-mao-web"
+  MyELB:
+    Type: "AWS::ElasticLoadBalancingV2::LoadBalancer"
+    Properties:
+      Name: "MyELB"
+      Subnets:
+        - !Ref PublicSubnet1
+        - !Ref PublicSubnet2
+      SecurityGroups:
+        - !Ref WebServerSecurityGroup
+      Scheme: "internet-facing"
+      Type: "application"
+      LoadBalancerAttributes:
+        - Key: idle_timeout.timeout_seconds
+          Value: "60"
+      Tags:
+        - Key: "Name"
+          Value: "srs-cloud-sandbox-mao-elb"
+  MyELBListener:
+    Type: "AWS::ElasticLoadBalancingV2::Listener"
+    Properties:
+      DefaultActions:
+        - Type: "forward"
+          TargetGroupArn: !Ref MyELBTargetGroup
+      LoadBalancerArn: !Ref MyELB
+      Port: 80
+      Protocol: "HTTP"
+  MyELBTargetGroup:
+    Type: "AWS::ElasticLoadBalancingV2::TargetGroup"
+    Properties:
+      Name: "MyELBTargetGroup"
+      VpcId: !Ref VPC
+      Port: 80
+      Protocol: "HTTP"
+      TargetType: "instance"
+      Targets:
+        - Id: !Ref WebServerInstance
+      Tags:
+        - Key: "Name"
+          Value: "srs-cloud-sandbox-mao-Target"
+  
+  CloudWatchAlarmHighCPU:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: "Alarm for high CPU utilization"
+      Namespace: "AWS/EC2" # namespace in CloudWatch where the metric is hosted 
+      MetricName: "CPUUtilization"
+      Dimensions:
+        - Name: "InstanceId"
+          Value: !Ref WebServerInstance
+      ComparisonOperator: "GreaterThanThreshold" # activate alarm when metric exceeds 80
+      EvaluationPeriods: 1
+      Period: 60 # 60 seconds period
+      Statistic: "Average"
+      Threshold: 80
+      AlarmActions:
+        - !Ref HighCPUAlarmTopic
+      Tags:
+        - Key: "Name"
+          Value: "srs-cloud-sandbox-mao-Alarm"
+  HighCPUAlarmTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      DisplayName: "HighCPUAlarmTopic"
+      Subscription:
+        - Endpoint: "p-malvaredo@neoris.com" # send notification when CPU use is exceeds 80%
+          Protocol: "email"
+
+  CloudWatchAlarmHighRequestCount:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: "Alarm for high request count on the ELB"
+      Namespace: "AWS/ELB"  # Namespace in CloudWatch for load balancers
+      MetricName: "RequestCount"  
+      Dimensions:
+        - Name: "LoadBalancer"
+          Value: !Ref MyELB  
+      ComparisonOperator: "GreaterThanThreshold"  
+      EvaluationPeriods: 1  
+      Period: 60  # 60 seconds period
+      Statistic: "Sum"  
+      Threshold: 1000  # 1000 requests
+      AlarmActions:
+        - !Ref HighRequestCountAlarmTopic  
+
+  HighRequestCountAlarmTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      DisplayName: "HighRequestCountAlarmTopic"
+      Subscription:
+        - Endpoint: "p-malvaredo@neoris.com"  # send notification when requests exceeds 1000
+          Protocol: "email"

@@ -1,8 +1,8 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: Plantilla de CloudFormation para una instancia de base de datos RDS (Mario)
 
-Resources:
-  RDSSecurityGroup:
+Resources: # recursos que se van a crear
+  RDSSecurityGroup: 
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupDescription: Allow access to RDS instance
@@ -27,7 +27,7 @@ Resources:
   DBSubnetGroup:
     Type: AWS::RDS::DBSubnetGroup
     Properties:
-      DBSubnetGroupDescription: 'Subnet group for RDS instance ' # dos subredes en dierentes AZ por estandar para tener alta disponibilidad
+      DBSubnetGroupDescription: 'Subnet group for RDS instance ' # dos subredes en diferentes AZ por estandar para tener alta disponibilidad
       SubnetIds:
         - subnet-001a928f428730716 # subred aislada zona AZ 1a 
         - subnet-0d5c2702c3509096a # subred aislada zona AZ 1b
@@ -35,7 +35,7 @@ Resources:
   DatabaseSecret:
     Type: AWS::SecretsManager::Secret
     Properties:
-      Description: Secret for RDS database access
+      Description: Secret for RDS database access # Generamos un secreto para no meter un password en codigo
       GenerateSecretString:
         SecretStringTemplate: '{"username": "admin"}'
         GenerateStringKey: password
@@ -50,7 +50,7 @@ Resources:
     Properties:
       DBInstanceIdentifier: srs-cloud-sandbox-mao-rds
       AllocatedStorage: 20
-      DBInstanceClass: db.t2.micro
+      DBInstanceClass: db.t2.micro # Instancia especial para bases de datos
       Engine: mysql
       EngineVersion: '8.0'
       MasterUsername: admin

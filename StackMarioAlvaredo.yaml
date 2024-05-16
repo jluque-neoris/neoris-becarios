@@ -1,6 +1,6 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: Plantilla de CloudFormation para una aplicación web con ELB, EFS y EBS (Mario)
-Parameters:
+Parameters: # parametros que utlizaremos varias veces en el código
   MyIP:
     Type: String
     Default: 79.146.140.67/32
@@ -11,7 +11,7 @@ Parameters:
     Default: vpc-03fdd3b33e6bc9591
     Description: Id de la VPC de sandbox
 
-Resources:
+Resources: # recursos que se van a crear
   Description: null
   Type: String
   Default: null
@@ -23,7 +23,7 @@ Resources:
         - IpProtocol: tcp
           FromPort: 80
           ToPort: 80
-          CidrIp: 10.0.0.0/21
+          SourceSecurityGroupId: !GetAtt  ELBSecurityGroup # solo permite acceso desde SG de ELB
         - IpProtocol: tcp
           FromPort: 22
           ToPort: 22
@@ -60,7 +60,7 @@ Resources:
         yum install -y httpd
         systemctl start httpd
         systemctl enable httpd
-        echo "<h1>Esta es mi web $(hostname -f)</h1>" > /var/www/html/index.html
+        echo "<h1>Esta es mi ip $(hostname -f)</h1>" > /var/www/html/index.html
       Tags:
         - Key: Name
           Value: srs-cloud-sandbox-mao-web
