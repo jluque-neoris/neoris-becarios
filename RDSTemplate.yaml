@@ -27,10 +27,7 @@ Parameters:
     Default: subnet-0b2f22ba72d34584b
     Description: ID of the public 1b subnet
 
-  PrivateSubnet:
-    Type: AWS::EC2::Subnet::Id
-    Default: subnet-044785eec793f6c06
-    Description: ID of the private subnet 1a
+
 
   IsolatedSubnet:
     Type: AWS::EC2::Subnet::Id
